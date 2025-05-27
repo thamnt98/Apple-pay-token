@@ -24,13 +24,18 @@ app.post('/validate-merchant', async (req, res) => {
     console.log('Using ADYEN_API_KEY:', process.env.ADYEN_API_KEY ? 'SET' : 'NOT SET');
 
     try {
-        const adyenResponse = await fetch('https://checkout-test.adyen.com/v68/applepay/validateMerchant', {
+        const adyenResponse = await fetch('https://checkout-test.adyen.com/v68/applePay/sessions', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-API-Key': process.env.ADYEN_API_KEY,
             },
-            body: JSON.stringify({ validationUrl: validationURL }),
+            body: JSON.stringify({
+                merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT, // tên merchant account
+                displayName: 'My Demo Store',
+                domainName: 'apple-pay-token-production.up.railway.app', // thay bằng domain thật đã xác thực
+                validationUrl: validationURL
+            }),
         });
 
         const text = await adyenResponse.text();
