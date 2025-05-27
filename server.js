@@ -34,7 +34,8 @@ app.post('/validate-merchant', async (req, res) => {
                 merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT, // tên merchant account
                 displayName: 'My Demo Store',
                 domainName: 'apple-pay-token-production.up.railway.app', // thay bằng domain thật đã xác thực
-                validationUrl: validationURL
+                validationUrl: validationURL,
+                merchantIdentifier: process.env.ADYEN_MERCHANT_IDENTIFIER, // Apple Merchant ID
             }),
         });
 
