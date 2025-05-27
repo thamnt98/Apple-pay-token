@@ -31,10 +31,8 @@ app.post('/validate-merchant', async (req, res) => {
                 'X-API-Key': process.env.ADYEN_API_KEY,
             },
             body: JSON.stringify({
-                merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT, // tên merchant account
                 displayName: 'My Demo Store',
                 domainName: 'apple-pay-token-production.up.railway.app', // thay bằng domain thật đã xác thực
-                validationUrl: validationURL,
                 merchantIdentifier: process.env.ADYEN_MERCHANT_IDENTIFIER, // Apple Merchant ID
             }),
         });
