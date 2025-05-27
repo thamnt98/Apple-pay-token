@@ -16,19 +16,26 @@ app.use(bodyParser.json());
 app.post('/validate-merchant', async (req, res) => {
     const { validationURL } = req.body;
 
-    if (!validationURL) {
-        return res.status(400).json({ error: 'Validation URL is required' });
+    try {
+        const adyenResponse = await fetch('https://checkout-test.adyen.com/v68/applepay/validateMerchant', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-API-Key': process.env.ADYEN_API_KEY, // bạn đặt key ở env
+            },
+            body: JSON.stringify({ validationUrl: validationURL }),
+        });
+
+        if (!adyenResponse.ok) {
+            const error = await adyenResponse.text();
+            return res.status(500).json({ error });
+        }
+
+        const merchantSession = await adyenResponse.json();
+        res.json(merchantSession);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
     }
-
-    // Trả về merchant session giả lập
-    const merchantSession = {
-        merchantIdentifier: "merchant.com.example",
-        displayName: "Example Store",
-        initiative: "web",
-        initiativeContext: "example.com"
-    };
-
-    res.json(merchantSession);
 });
 
 // Endpoint để xử lý thanh toán
