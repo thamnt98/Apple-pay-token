@@ -56,28 +56,29 @@
             console.log("Start Apple Pay session")
 
             session.onpaymentauthorized = async (event) => {
-                try {
-                    const paymentToken = event.payment.token;
-                    console.log('Token thanh toán Apple Pay:', paymentToken);
+    try {
+        const paymentToken = event.payment.token;
+        console.log('Token thanh toán Apple Pay:', paymentToken);
 
-                    const response = await fetch('https://webhook.site/3e1a5a6d-e280-4464-8f2a-a05b70f2d0cf', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(paymentToken)
-                    });
+        const response = await fetch('https://webhook.site/3e1a5a6d-e280-4464-8f2a-a05b70f2d0cf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(paymentToken)
+        });
 
-                    if (!response.ok) {
-                        console.error('Lỗi khi gửi payment token:', await response.text());
-                        session.completePayment(ApplePaySession.STATUS_FAILURE);
-                        return;
-                    }
+        if (!response.ok) {
+            console.error('Lỗi khi gửi payment token:', await response.text());
+            session.completePayment(ApplePaySession.STATUS_FAILURE);
+            return;
+        }
 
-                    session.completePayment(ApplePaySession.STATUS_SUCCESS);
-                } catch (error) {
-                    console.error('Lỗi khi xử lý payment:', error);
-                    session.completePayment(ApplePaySession.STATUS_FAILURE);
-                }
-            };
+        // ✅ Đánh dấu thành công vì chỉ cần gửi token
+        session.completePayment(ApplePaySession.STATUS_SUCCESS);
+    } catch (error) {
+        console.error('Lỗi khi xử lý payment:', error);
+        session.completePayment(ApplePaySession.STATUS_FAILURE);
+    }
+};
 
 
             session.begin();
