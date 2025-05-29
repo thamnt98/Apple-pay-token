@@ -8,7 +8,6 @@
 <button id="apple-pay-button" style="display: none;">Pay with Apple Pay</button>
 
 <script>
-    const merchantIdentifier = process.env.DOMAIN_NAME;
 
     async function setupApplePay() {
         if (!window.ApplePaySession) {
@@ -16,7 +15,7 @@
             return;
         }
 
-        const canPay = await ApplePaySession.canMakePaymentsWithActiveCard(merchantIdentifier);
+        const canPay = await ApplePaySession.canMakePaymentsWithActiveCard("000000000304291");
         if (!canPay) {
             console.warn("No active Apple Pay cards.");
             return;
