@@ -41,9 +41,11 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                     });
-                    const merchantSession = await response.json();
-                    console.log('Merchant session đã nhận:', merchantSession);
-                    session.completeMerchantValidation(merchantSession);
+                    const result = await response.json();
+                    // Nếu Adyen trả về dạng { data: "<base64>" }
+                    const decoded = JSON.parse(atob(result.data)); // Giải mã base64 -> JSON
+
+                    console.log('Merchant session đã giải mã:', decoded);
                 } catch (e) {
                     console.log('Merchant validation lỗi:', e);
                     session.abort();
@@ -53,18 +55,29 @@
             console.log("Start Apple Pay session")
 
             session.onpaymentauthorized = async (event) => {
-                const paymentToken = event.payment.token;
-                console.log('Token thanh toán Apple Pay:', paymentToken);
+                try {
+                    const paymentToken = event.payment.token;
+                    console.log('Token thanh toán Apple Pay:', paymentToken);
 
-                // Gửi token đến server hoặc webhook test
-                await fetch('https://webhook.site/3e1a5a6d-e280-4464-8f2a-a05b70f2d0cf', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(paymentToken)
-                });
+                    const response = await fetch('\thttps://webhook.site/3e1a5a6d-e280-4464-8f2a-a05b70f2d0cf', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(paymentToken)
+                    });
 
-                session.completePayment(ApplePaySession.STATUS_SUCCESS);
+                    if (!response.ok) {
+                        console.error('Lỗi khi gửi payment token:', await response.text());
+                        session.completePayment(ApplePaySession.STATUS_FAILURE);
+                        return;
+                    }
+
+                    session.completePayment(ApplePaySession.STATUS_SUCCESS);
+                } catch (error) {
+                    console.error('Lỗi khi xử lý payment:', error);
+                    session.completePayment(ApplePaySession.STATUS_FAILURE);
+                }
             };
+
 
             session.begin();
         });
