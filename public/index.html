@@ -42,12 +42,15 @@
                         headers: { 'Content-Type': 'application/json' },
                     });
                     const merchantSession = await response.json();
+                    console.log('Merchant session đã nhận:', merchantSession);
                     session.completeMerchantValidation(merchantSession);
                 } catch (e) {
-                    console.error('Merchant validation lỗi:', e);
+                    console.log('Merchant validation lỗi:', e);
                     session.abort();
                 }
             };
+
+            console.log("Start Apple Pay session")
 
             session.onpaymentauthorized = async (event) => {
                 const paymentToken = event.payment.token;
