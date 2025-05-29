@@ -11,13 +11,13 @@
 
     async function setupApplePay() {
         if (!window.ApplePaySession) {
-            console.warn("Apple Pay is not supported on this device.");
+            console.log("Apple Pay is not supported on this device.");
             return;
         }
 
         const canPay = await ApplePaySession.canMakePaymentsWithActiveCard("000000000304291");
         if (!canPay) {
-            console.warn("No active Apple Pay cards.");
+            console.log("No active Apple Pay cards.");
             return;
         }
 
