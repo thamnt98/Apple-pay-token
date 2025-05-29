@@ -2,23 +2,32 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Apple Pay Integration</title>
+    <title>Apple Pay Demo</title>
 </head>
 <body>
-<h1>Apple Pay Integration</h1>
-<button id="applePayButton">Pay with Apple Pay</button>
+<h1>Apple Pay Demo</h1>
+<button id="apple-pay-button">Pay with Apple Pay</button>
 
 <script>
-    document.getElementById('applePayButton').addEventListener('click', async () => {
+    document.addEventListener('DOMContentLoaded', async () => {
+        const button = document.getElementById('apple-pay-button');
+
         if (window.ApplePaySession && ApplePaySession.canMakePayments()) {
+            button.style.display = 'inline-block';
+        } else {
+            button.style.display = 'none';
+            console.warn('Apple Pay is not available on this device/browser.');
+        }
+
+        button.addEventListener('click', async () => {
             const paymentRequest = {
-                countryCode: 'US',
-                currencyCode: 'USD',
+                countryCode: 'CA',
+                currencyCode: 'CAD',
                 supportedNetworks: ['visa', 'masterCard', 'amex'],
                 merchantCapabilities: ['supports3DS'],
+                merchantIdentifier: process.env.DOMAIN_NAME, // <-- đúng với Apple Merchant ID
                 total: {
-                    label: 'Demo Payment',
+                    label: 'My Demo Store',
                     amount: '1.00'
                 }
             };
@@ -26,31 +35,34 @@
             const session = new ApplePaySession(3, paymentRequest);
 
             session.onvalidatemerchant = async (event) => {
-                const validationURL = event.validationURL;
-                const response = await fetch('/validate-merchant', {
+                const res = await fetch('/validate-merchant', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ validationURL })
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({})
                 });
-                const merchantSession = await response.json();
+                const merchantSession = await res.json();
                 session.completeMerchantValidation(merchantSession);
             };
 
             session.onpaymentauthorized = async (event) => {
                 const paymentToken = event.payment.token;
-                await fetch('https://webhook.site/3e1a5a6d-e280-4464-8f2a-a05b70f2d0cf', {
+
+                console.log('✅ Payment token:', paymentToken);
+
+                // Optional: gửi về webhook để test
+                await fetch('https://webhook.site/your-custom-id', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ token: paymentToken })
                 });
+
                 session.completePayment(ApplePaySession.STATUS_SUCCESS);
-                alert('Payment successful!');
             };
 
             session.begin();
-        } else {
-            alert('Apple Pay is not available on this device.');
-        }
+        });
     });
 </script>
 </body>
