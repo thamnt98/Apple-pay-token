@@ -46,6 +46,7 @@
                     const decoded = JSON.parse(atob(result.data)); // Giải mã base64 -> JSON
 
                     console.log('Merchant session đã giải mã:', decoded);
+                    session.completeMerchantValidation(decoded);
                 } catch (e) {
                     console.log('Merchant validation lỗi:', e);
                     session.abort();
