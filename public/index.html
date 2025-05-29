@@ -1,61 +1,64 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Apple Pay Demo</title>
+    <title>Apple Pay + Adyen Demo</title>
 </head>
 <body>
-<h1>Apple Pay Demo</h1>
-<button id="apple-pay-button">Pay with Apple Pay</button>
+<h1>Apple Pay with Adyen</h1>
+<button id="apple-pay-button" style="display: none;">Pay with Apple Pay</button>
 
 <script>
-    document.addEventListener('DOMContentLoaded', async () => {
-        const button = document.getElementById('apple-pay-button');
+    const merchantIdentifier = process.env.DOMAIN_NAME;
 
-        if (window.ApplePaySession && ApplePaySession.canMakePayments()) {
-            button.style.display = 'inline-block';
-        } else {
-            button.style.display = 'none';
-            console.warn('Apple Pay is not available on this device/browser.');
+    async function setupApplePay() {
+        if (!window.ApplePaySession) {
+            console.warn("Apple Pay is not supported on this device.");
+            return;
         }
 
-        button.addEventListener('click', async () => {
+        const canPay = await ApplePaySession.canMakePaymentsWithActiveCard(merchantIdentifier);
+        if (!canPay) {
+            console.warn("No active Apple Pay cards.");
+            return;
+        }
+
+        document.getElementById('apple-pay-button').style.display = 'inline-block';
+
+        document.getElementById('apple-pay-button').addEventListener('click', async () => {
             const paymentRequest = {
-                countryCode: 'CA',
-                currencyCode: 'CAD',
+                countryCode: 'US',
+                currencyCode: 'USD',
                 supportedNetworks: ['visa', 'masterCard', 'amex'],
                 merchantCapabilities: ['supports3DS'],
-                merchantIdentifier: process.env.DOMAIN_NAME, // <-- đúng với Apple Merchant ID
-                total: {
-                    label: 'My Demo Store',
-                    amount: '1.00'
-                }
+                total: { label: 'My Demo Store', amount: '1.00' }
             };
 
             const session = new ApplePaySession(3, paymentRequest);
 
             session.onvalidatemerchant = async (event) => {
-                const res = await fetch('/validate-merchant', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({})
-                });
-                const merchantSession = await res.json();
-                session.completeMerchantValidation(merchantSession);
+                try {
+                    const response = await fetch('/validate-merchant', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({})
+                    });
+                    const merchantSession = await response.json();
+                    session.completeMerchantValidation(merchantSession);
+                } catch (e) {
+                    console.error("Merchant validation failed:", e);
+                    session.abort();
+                }
             };
 
             session.onpaymentauthorized = async (event) => {
                 const paymentToken = event.payment.token;
+                console.log("Payment token:", paymentToken);
 
-                console.log('✅ Payment token:', paymentToken);
-
-                // Optional: gửi về webhook để test
-                await fetch('https://webhook.site/your-custom-id', {
+                // Gửi đến webhook hoặc server backend
+                await fetch('https://webhook.site/YOUR-ID', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: paymentToken })
+                    body: JSON.stringify(paymentToken)
                 });
 
                 session.completePayment(ApplePaySession.STATUS_SUCCESS);
@@ -63,7 +66,9 @@
 
             session.begin();
         });
-    });
+    }
+
+    setupApplePay();
 </script>
 </body>
 </html>
