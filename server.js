@@ -14,13 +14,6 @@ app.use(bodyParser.json());
 
 // Endpoint để xử lý Apple Pay merchant validation
 app.post('/validate-merchant', async (req, res) => {
-    const { validationURL } = req.body;
-
-    if (!validationURL) {
-        return res.status(400).json({ error: 'validationURL is required' });
-    }
-
-    console.log('Received validationURL:', validationURL);
     console.log('Using ADYEN_API_KEY:', process.env.ADYEN_API_KEY ? 'SET' : 'NOT SET');
 
     try {
