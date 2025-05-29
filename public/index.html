@@ -6,19 +6,32 @@
 <body>
 <h1>Apple Pay with Adyen</h1>
 <button id="apple-pay-button" style="display:none;">Pay with Apple Pay</button>
+<div id="status-message"></div>
 
 <script>
     const merchantIdentifier = '000000000304291'; // Thay bằng merchant ID thực của bạn
 
+    function updateStatus(message, isError = false) {
+        const statusEl = document.getElementById('status-message');
+        statusEl.textContent = message;
+        statusEl.style.color = isError ? 'red' : 'green';
+        console.log(isError ? 'ERROR:' : 'INFO:', message);
+    }
+
     async function setupApplePay() {
         if (!window.ApplePaySession) {
-            console.warn('Apple Pay không được hỗ trợ trên trình duyệt này.');
+            updateStatus('Apple Pay không được hỗ trợ trên trình duyệt này.', true);
+            return;
+        }
+
+        if (!ApplePaySession.canMakePayments()) {
+            updateStatus('Thiết bị này không hỗ trợ Apple Pay.', true);
             return;
         }
 
         const canPay = await ApplePaySession.canMakePaymentsWithActiveCard(merchantIdentifier);
         if (!canPay) {
-            console.warn('Chưa có thẻ Apple Pay hợp lệ. Người dùng có thể thêm thẻ mới trong UI khi thanh toán.');
+            updateStatus('Chưa có thẻ Apple Pay hợp lệ. Người dùng có thể thêm thẻ mới trong UI khi thanh toán.');
         }
 
         const btn = document.getElementById('apple-pay-button');
@@ -37,49 +50,71 @@
 
             session.onvalidatemerchant = async (event) => {
                 try {
+                    updateStatus('Đang xác thực merchant...');
                     const response = await fetch('/validate-merchant', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                     });
-                    const result = await response.json();
-                    // Nếu Adyen trả về dạng { data: "<base64>" }
-                    const decoded = JSON.parse(atob(result.data)); // Giải mã base64 -> JSON
 
-                    console.log('Merchant session đã giải mã:', decoded);
-                    session.completeMerchantValidation(decoded);
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        updateStatus(`Lỗi xác thực merchant: ${errorText}`, true);
+                        session.abort();
+                        return;
+                    }
+
+                    const merchantSession = await response.json();
+                    console.log('Merchant session nhận được:', merchantSession);
+
+                    // Trực tiếp sử dụng merchantSession từ Adyen API
+                    session.completeMerchantValidation(merchantSession);
+                    updateStatus('Xác thực merchant thành công');
                 } catch (e) {
-                    console.log('Merchant validation lỗi:', e);
+                    updateStatus(`Merchant validation lỗi: ${e.message}`, true);
+                    console.error('Merchant validation lỗi:', e);
                     session.abort();
                 }
             };
 
-            console.log("Start Apple Pay session")
-
             session.onpaymentauthorized = async (event) => {
                 try {
+                    updateStatus('Đang xử lý thanh toán...');
                     const paymentToken = event.payment.token;
                     console.log('Token thanh toán Apple Pay:', paymentToken);
+                    console.log('Payment data:', event.payment);
 
+                    // Gửi token đến server để xử lý thanh toán
+                    // Thay đổi URL này thành endpoint xử lý thanh toán thực tế của bạn
                     const response = await fetch('https://webhook.site/3e1a5a6d-e280-4464-8f2a-a05b70f2d0cf', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(paymentToken)
+                        body: JSON.stringify({
+                            token: paymentToken,
+                            payment: event.payment
+                        })
                     });
 
                     if (!response.ok) {
-                        console.error('Lỗi khi gửi payment token:', await response.text());
+                        const errorText = await response.text();
+                        updateStatus(`Lỗi khi xử lý thanh toán: ${errorText}`, true);
                         session.completePayment(ApplePaySession.STATUS_FAILURE);
                         return;
                     }
 
+                    updateStatus('Thanh toán thành công!');
                     session.completePayment(ApplePaySession.STATUS_SUCCESS);
                 } catch (error) {
+                    updateStatus(`Lỗi khi xử lý payment: ${error.message}`, true);
                     console.error('Lỗi khi xử lý payment:', error);
                     session.completePayment(ApplePaySession.STATUS_FAILURE);
                 }
             };
 
+            session.oncancel = (event) => {
+                updateStatus('Người dùng đã hủy thanh toán');
+            };
 
+            updateStatus('Bắt đầu phiên Apple Pay...');
             session.begin();
         });
     }
