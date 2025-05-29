@@ -72,7 +72,7 @@
         // ✅ Đánh dấu thành công vì chỉ cần gửi token
         session.completePayment(ApplePaySession.STATUS_SUCCESS);
     } catch (error) {
-        console.error('Lỗi khi xử lý payment:', error);
+        alert('Lỗi khi xử lý payment:', error);
         session.completePayment(ApplePaySession.STATUS_FAILURE);
     }
 };
