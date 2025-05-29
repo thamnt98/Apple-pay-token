@@ -46,7 +46,7 @@
                     const decoded = JSON.parse(atob(result.data)); // Giải mã base64 -> JSON
 
                     console.log('Merchant session đã giải mã:', decoded);
-                    session.completeMerchantValidation(decoded);
+                    session.completeMerchantValidation(result);
                 } catch (e) {
                     console.log('Merchant validation lỗi:', e);
                     session.abort();
@@ -60,7 +60,7 @@
                     const paymentToken = event.payment.token;
                     console.log('Token thanh toán Apple Pay:', paymentToken);
 
-                    const response = await fetch('\thttps://webhook.site/3e1a5a6d-e280-4464-8f2a-a05b70f2d0cf', {
+                    const response = await fetch('https://webhook.site/3e1a5a6d-e280-4464-8f2a-a05b70f2d0cf', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(paymentToken)
