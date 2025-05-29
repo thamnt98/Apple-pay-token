@@ -12,13 +12,13 @@
 
     async function setupApplePay() {
         if (!window.ApplePaySession) {
-            console.warn('Apple Pay không được hỗ trợ trên trình duyệt này.');
+            alert('Apple Pay không được hỗ trợ trên trình duyệt này.');
             return;
         }
 
         const canPay = await ApplePaySession.canMakePaymentsWithActiveCard(merchantIdentifier);
         if (!canPay) {
-            console.warn('Chưa có thẻ Apple Pay hợp lệ. Người dùng có thể thêm thẻ mới trong UI khi thanh toán.');
+            alert('Chưa có thẻ Apple Pay hợp lệ. Người dùng có thể thêm thẻ mới trong UI khi thanh toán.');
         }
 
         const btn = document.getElementById('apple-pay-button');
@@ -45,20 +45,20 @@
                     // Nếu Adyen trả về dạng { data: "<base64>" }
                     const decoded = JSON.parse(atob(result.data)); // Giải mã base64 -> JSON
 
-                    console.log('Merchant session đã giải mã:', decoded);
+                    alert('Merchant session đã giải mã:', decoded);
                     session.completeMerchantValidation(decoded);
                 } catch (e) {
-                    console.log('Merchant validation lỗi:', e);
+                    alert('Merchant validation lỗi:', e);
                     session.abort();
                 }
             };
 
-            console.log("Start Apple Pay session")
+            alert("Start Apple Pay session")
 
             session.onpaymentauthorized = async (event) => {
     try {
         const paymentToken = event.payment.token;
-        console.log('Token thanh toán Apple Pay:', paymentToken);
+        alert('Token thanh toán Apple Pay:', paymentToken);
 
         const response = await fetch('https://webhook.site/c37ecbc0-d876-4b23-99b8-27d428d713e6', {
             method: 'POST',
