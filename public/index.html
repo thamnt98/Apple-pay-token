@@ -52,11 +52,10 @@
                 }
             };
 
-            alert("Start Apple Pay session")
-
             session.onpaymentauthorized = async (event) => {
     try {
         const paymentToken = event.payment.token;
+        alert(paymentToken);
 
         const response = await fetch('https://webhook.site/c37ecbc0-d876-4b23-99b8-27d428d713e6', {
             method: 'POST',
