@@ -50,23 +50,24 @@
         console.log('Payment Data:', paymentData);
 
         // Gửi paymentData lên webhook
-        fetch('https://webhook.site/c37ecbc0-d876-4b23-99b8-27d428d713e6', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            paymentData: paymentData
-          })
-        }).then(response => {
-          if (response.ok) {
+        // fetch('https://webhook.site/c37ecbc0-d876-4b23-99b8-27d428d713e6', {
+        //   method: 'POST',
+        //   headers: {
+        //     'Content-Type': 'application/json'
+        //   },
+        //   body: JSON.stringify({
+        //     paymentData: paymentData
+        //   })
+        // }).then(response => {
+        //   if (response.ok) {
+        //     session.completePayment(ApplePaySession.STATUS_SUCCESS);
+        //   } else {
+        //     session.completePayment(ApplePaySession.STATUS_FAILURE);
+        //   }
+        // }).catch(() => {
+        //   session.completePayment(ApplePaySession.STATUS_FAILURE);
+        // });
             session.completePayment(ApplePaySession.STATUS_SUCCESS);
-          } else {
-            session.completePayment(ApplePaySession.STATUS_FAILURE);
-          }
-        }).catch(() => {
-          session.completePayment(ApplePaySession.STATUS_FAILURE);
-        });
       };
 
       session.begin();
