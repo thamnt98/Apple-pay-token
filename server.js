@@ -42,10 +42,13 @@ app.post("/validate-merchant", async (req, res) => {
       validationUrl ,
     };
 
-    // Gọi API tạo Apple Pay session
-    const response = await client.request("POST", endpoint, body);
+    const { body: responseBody } = await client.httpClient.request(
+      "POST",
+      "/checkout/v68/applePay/sessions",
+      body
+    );
 
-    res.json(response);
+    res.json(responseBody);
   } catch (err) {
     console.error("Apple Pay session error:", err.message);
     res.status(500).json({ error: err.message });
