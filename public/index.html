@@ -17,10 +17,10 @@
         currencyCode: 'CAD',
         total: {
           label: 'Demo Payment',
-          amount: '1.00'
+          amount: '1.00',
         },
         supportedNetworks: ['visa', 'masterCard', 'amex'],
-        merchantCapabilities: ['supports3DS']
+        merchantCapabilities: ['supports3DS'],
       };
 
       const session = new ApplePaySession(3, paymentRequest);
@@ -29,29 +29,21 @@
         fetch('/validate-merchant', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ validationURL: event.validationURL })
+          body: JSON.stringify({ validationUrl: event.validationURL }),
         })
-        .then(res => res.json())
-        .then(data => {
-          console.log("Merchant session data:", data);
-          session.completeMerchantValidation(data);
-        })
-        .catch((err) => {
-          console.error("Merchant validation failed:", err);
-          session.abort();
-        });
+          .then(res => res.json())
+          .then(data => {
+            session.completeMerchantValidation(data);
+          })
+          .catch(() => session.abort());
       };
 
       session.onpaymentauthorized = (event) => {
         const paymentData = event.payment.token.paymentData;
         console.log('Payment Data:', paymentData);
 
-        // Gửi paymentData lên webhook nếu cần
-        // fetch('https://webhook.site/abc...', {
-        //   method: 'POST',
-        //   headers: { 'Content-Type': 'application/json' },
-        //   body: JSON.stringify({ paymentData })
-        // });
+        // Nếu muốn gửi paymentData lên webhook thì thêm fetch ở đây
+        // Hoặc xử lý paymentData cho mục đích khác
 
         session.completePayment(ApplePaySession.STATUS_SUCCESS);
       };
