@@ -7,7 +7,6 @@
   <button id="apple-pay-button" style="display:none;">Pay with Apple Pay</button>
 
   <script>
-    // Kiểm tra Apple Pay khả dụng
     if (window.ApplePaySession && ApplePaySession.canMakePayments()) {
       document.getElementById('apple-pay-button').style.display = 'inline-block';
     }
@@ -26,50 +25,35 @@
 
       const session = new ApplePaySession(3, paymentRequest);
 
-      // Khi Apple Pay UI được hiển thị và người dùng chọn phương thức thanh toán
       session.onvalidatemerchant = (event) => {
-        // Ở đây bạn phải validate merchant với Apple server, 
-        // thường gọi API backend để trả về merchantSession từ Apple.
-        // Vì bạn hỏi frontend không certificate, mình sẽ trả về error hoặc dummy merchant session
-        // Thực tế bạn cần làm bước này server-side để lấy merchant session.
-        fetch('/validate-merchant', {  // Phải có API validate merchant session trên server
+        fetch('/validate-merchant', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ validationURL: event.validationURL })
         })
         .then(res => res.json())
         .then(data => {
-            console.log("Data: " + data);
-            session.completeMerchantValidation(data);
-})
-        .catch(() => session.abort());
+          console.log("Merchant session data:", data);
+          session.completeMerchantValidation(data);
+        })
+        .catch((err) => {
+          console.error("Merchant validation failed:", err);
+          session.abort();
+        });
       };
 
-      // Khi người dùng hoàn tất thanh toán (nhấn Confirm)
       session.onpaymentauthorized = (event) => {
-        // Lấy paymentData
         const paymentData = event.payment.token.paymentData;
-
         console.log('Payment Data:', paymentData);
 
-        // Gửi paymentData lên webhook
-        // fetch('https://webhook.site/c37ecbc0-d876-4b23-99b8-27d428d713e6', {
+        // Gửi paymentData lên webhook nếu cần
+        // fetch('https://webhook.site/abc...', {
         //   method: 'POST',
-        //   headers: {
-        //     'Content-Type': 'application/json'
-        //   },
-        //   body: JSON.stringify({
-        //     paymentData: paymentData
-        //   })
-        // }).then(response => {
-        //   if (response.ok) {
-        //     session.completePayment(ApplePaySession.STATUS_SUCCESS);
-        //   } else {
-        //     session.completePayment(ApplePaySession.STATUS_FAILURE);
-        //   }
-        // }).catch(() => {
-        //   session.completePayment(ApplePaySession.STATUS_FAILURE);
+        //   headers: { 'Content-Type': 'application/json' },
+        //   body: JSON.stringify({ paymentData })
         // });
-            session.completePayment(ApplePaySession.STATUS_SUCCESS);
+
+        session.completePayment(ApplePaySession.STATUS_SUCCESS);
       };
 
       session.begin();
