@@ -72,7 +72,7 @@
         currencyCode: 'CAD',
         total: {
           label: 'Demo Store',
-          amount: '0.00' // Zero amount since we're just getting the token
+          amount: '0.01' // Small amount instead of zero (some payment processors require non-zero amounts)
         },
         supportedNetworks: ['visa', 'masterCard', 'amex'],
         merchantCapabilities: ['supports3DS']
@@ -88,8 +88,14 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ validationUrl: event.validationURL })
         })
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`HTTP error! Status: ${res.status}`);
+          }
+          return res.json();
+        })
         .then(merchantSession => {
+          console.log("Merchant validation successful:", merchantSession);
           session.completeMerchantValidation(merchantSession);
         })
         .catch(err => {

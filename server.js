@@ -41,6 +41,10 @@ app.post("/validate-merchant", async (req, res) => {
       initiative: "web",
       initiativeContext: config.domainName,
       validationUrl,
+      amount: {
+        currency: "CAD",
+        value: 1
+      }
     });
 
     res.json(response);
