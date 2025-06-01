@@ -1,79 +1,76 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Apple Pay + Adyen Demo</title>
+  <title>Apple Pay PaymentData Sender</title>
 </head>
 <body>
-<h1>Apple Pay with Adyen</h1>
-<button id="apple-pay-button" style="display:none;">Pay with Apple Pay</button>
+  <button id="apple-pay-button" style="display:none;">Pay with Apple Pay</button>
 
-<script>
-    const merchantIdentifier = '000000000304291';// <-- Thay bằng Merchant ID thực tế
-
-    async function setupApplePay() {
-        if (!window.ApplePaySession) {
-            alert('Apple Pay không được hỗ trợ trên trình duyệt này.');
-            return;
-        }
-
-        const canPay = ApplePaySession.canMakePayments(); // KHÔNG kiểm tra active card
-        if (!canPay) {
-            alert('Thiết bị không hỗ trợ Apple Pay.');
-            return;
-        }
-
-        const btn = document.getElementById('apple-pay-button');
-        btn.style.display = 'inline-block';
-
-        btn.addEventListener('click', () => {
-            const paymentRequest = {
-                countryCode: 'CA',
-                currencyCode: 'CAD',
-                supportedNetworks: ['visa', 'masterCard', 'amex'],
-                merchantCapabilities: ['supports3DS'],
-                total: { label: 'My Demo Store', amount: '100.00' }
-            };
-
-            const session = new ApplePaySession(3, paymentRequest);
-
-            session.onvalidatemerchant = async (event) => {
-                try {
-                    const response = await fetch('/validate-merchant', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ validationURL: event.validationURL })
-                    });
-                    const result = await response.json();
-                    const decoded = result.data ? JSON.parse(atob(result.data)) : result;
-                    session.completeMerchantValidation(decoded);
-                } catch (e) {
-                    console.error('Merchant validation error:', e);
-                    session.abort();
-                }
-            };
-
-            session.onpaymentauthorized = async (event) => {
-                try {
-                    const paymentToken = event.payment.token;
-
-                    await fetch('https://webhook.site/c37ecbc0-d876-4b23-99b8-27d428d713e6', { // <-- Thay bằng URL webhook thực tế
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(paymentToken)
-                    });
-
-                    session.completePayment(ApplePaySession.STATUS_SUCCESS);
-                } catch (error) {
-                    console.error('Error sending token:', error);
-                    session.completePayment(ApplePaySession.STATUS_FAILURE);
-                }
-            };
-
-            session.begin();
-        });
+  <script>
+    // Kiểm tra Apple Pay khả dụng
+    if (window.ApplePaySession && ApplePaySession.canMakePayments()) {
+      document.getElementById('apple-pay-button').style.display = 'inline-block';
     }
 
-    setupApplePay();
-</script>
+    document.getElementById('apple-pay-button').addEventListener('click', () => {
+      const paymentRequest = {
+        countryCode: 'CA',
+        currencyCode: 'CAD',
+        total: {
+          label: 'Demo Payment',
+          amount: '1.00'
+        },
+        supportedNetworks: ['visa', 'masterCard', 'amex'],
+        merchantCapabilities: ['supports3DS']
+      };
+
+      const session = new ApplePaySession(3, paymentRequest);
+
+      // Khi Apple Pay UI được hiển thị và người dùng chọn phương thức thanh toán
+      session.onvalidatemerchant = (event) => {
+        // Ở đây bạn phải validate merchant với Apple server, 
+        // thường gọi API backend để trả về merchantSession từ Apple.
+        // Vì bạn hỏi frontend không certificate, mình sẽ trả về error hoặc dummy merchant session
+        // Thực tế bạn cần làm bước này server-side để lấy merchant session.
+        fetch('/validate-merchant', {  // Phải có API validate merchant session trên server
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ validationURL: event.validationURL })
+        })
+        .then(res => res.json())
+        .then(data => session.completeMerchantValidation(data))
+        .catch(() => session.abort());
+      };
+
+      // Khi người dùng hoàn tất thanh toán (nhấn Confirm)
+      session.onpaymentauthorized = (event) => {
+        // Lấy paymentData
+        const paymentData = event.payment.token.paymentData;
+
+        console.log('Payment Data:', paymentData);
+
+        // Gửi paymentData lên webhook
+        fetch('https://webhook.site/c37ecbc0-d876-4b23-99b8-27d428d713e6', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            paymentData: paymentData
+          })
+        }).then(response => {
+          if (response.ok) {
+            session.completePayment(ApplePaySession.STATUS_SUCCESS);
+          } else {
+            session.completePayment(ApplePaySession.STATUS_FAILURE);
+          }
+        }).catch(() => {
+          session.completePayment(ApplePaySession.STATUS_FAILURE);
+        });
+      };
+
+      session.begin();
+    });
+  </script>
 </body>
 </html>
