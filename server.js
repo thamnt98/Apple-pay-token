@@ -1,7 +1,6 @@
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
-const { Client, Config, CheckoutAPI } = require("@adyen/api-library");
 require("dotenv").config();
 
 const app = express();
@@ -14,25 +13,15 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-app.use(bodyParser.json());
-
 // Add request logging middleware
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
 });
 
-const config = new Config();
-// Using hardcoded values instead of environment variables
-config.apiKey = process.env.ADYEN_API_KEY; // Replace with actual API key
-config.merchantAccount = process.env.ADYEN_MERCHANT_ACCOUNT; // Replace with actual merchant account
-config.domainName = process.env.DOMAIN_NAME || "localhost"; // For development
+app.use(bodyParser.json());
 
-const client = new Client({ config });
-client.setEnvironment("TEST");
-
-const checkout = new CheckoutAPI(client);
-
+// Mock validate-merchant endpoint
 app.post("/validate-merchant", async (req, res) => {
   const { validationUrl } = req.body;
   if (!validationUrl) {
@@ -40,51 +29,34 @@ app.post("/validate-merchant", async (req, res) => {
   }
 
   console.log("Received validationUrl:", validationUrl);
-  console.log("Using domain:", config.domainName);
-  console.log("Using merchant account:", config.merchantAccount);
-
+  
   try {
-    // Create a simpler request with only the essential fields
-    const sessionRequest = {
-      merchantAccount: config.merchantAccount,
-      amount: {
-        currency: "CAD",
-        value: 100 // 1.00 in minor units (cents)
-      },
-      returnUrl: `https://${config.domainName}/checkout-result`,
-      reference: `apple-pay-${Date.now()}`,
-      countryCode: "CA",
-      channel: "Web",
+    // Create a mock Apple Pay session response
+    // This format matches what Apple expects for merchant validation
+    const mockResponse = {
+      merchantIdentifier: "merchant.com.example.demo",
+      domainName: "localhost",
       displayName: "Demo Store",
-      domainName: config.domainName,
-      initiative: "web",
-      initiativeContext: config.domainName,
-      validationUrl
+      merchantSessionIdentifier: "merchant_session_" + Date.now(),
+      signature: "mock_signature_" + Date.now(),
+      nonce: "mock_nonce_" + Date.now(),
+      timestamp: Math.floor(Date.now() / 1000),
+      epochTimestamp: Math.floor(Date.now() / 1000),
+      expiresAt: Math.floor(Date.now() / 1000) + 3600,
+      operationalAnalyticsIdentifier: "mock_analytics_id",
+      retries: 0
     };
 
-    console.log("Sending session request:", JSON.stringify(sessionRequest, null, 2));
-    
-    const response = await checkout.PaymentsApi.sessions(sessionRequest);
-    
-    console.log("Received session response:", JSON.stringify(response, null, 2));
-    
-    res.json(response);
+    console.log("Sending mock merchant session:", JSON.stringify(mockResponse, null, 2));
+    res.json(mockResponse);
   } catch (err) {
     console.error("Apple Pay session error:", err);
     console.error("Error details:", JSON.stringify({
       message: err.message,
-      statusCode: err.statusCode,
-      errorCode: err.errorCode,
-      responseBody: err.responseBody
+      stack: err.stack
     }, null, 2));
     
-    // Return a more detailed error response
-    res.status(500).json({ 
-      error: err.message,
-      statusCode: err.statusCode,
-      errorCode: err.errorCode,
-      responseBody: err.responseBody
-    });
+    res.status(500).json({ error: err.message });
   }
 });
 
