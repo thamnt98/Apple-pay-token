@@ -97,13 +97,29 @@
     // Webhook URL
     const WEBHOOK_URL = "https://webhook.site/c37ecbc0-d876-4b23-99b8-27d428d713e6";
     
-    // Check if Apple Pay is available
-    if (window.ApplePaySession && ApplePaySession.canMakePayments()) {
-      document.getElementById('apple-pay-button').style.display = 'inline-block';
-      logMessage('Apple Pay is available on this device', 'success');
-    } else {
-      logMessage('Apple Pay is not available on this device', 'error');
-    }
+    // Check if Apple Pay is available and properly configured
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.ApplePaySession) {
+        const canMakePaymentsPromise = ApplePaySession.canMakePaymentsWithActiveCard("merchant.com.yourcompany.test");
+        canMakePaymentsPromise.then((canMakePayments) => {
+          if (canMakePayments) {
+            document.getElementById('apple-pay-button').style.display = 'inline-block';
+            logMessage('Apple Pay is available with active card', 'success');
+          } else {
+            document.getElementById('apple-pay-button').style.display = 'inline-block';
+            logMessage('Apple Pay is available but no active card', 'info');
+          }
+        }).catch(err => {
+          logMessage('Error checking Apple Pay capability: ' + err.message, 'error');
+          if (ApplePaySession.canMakePayments()) {
+            document.getElementById('apple-pay-button').style.display = 'inline-block';
+            logMessage('Basic Apple Pay is available', 'info');
+          }
+        });
+      } else {
+        logMessage('Apple Pay is not available on this device', 'error');
+      }
+    });
 
     document.getElementById('apple-pay-button').addEventListener('click', () => {
       logMessage('Apple Pay button clicked');
@@ -112,12 +128,14 @@
       const paymentRequest = {
         countryCode: 'CA',
         currencyCode: 'CAD',
+        supportedNetworks: ['visa', 'masterCard', 'amex', 'discover'],
+        merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit'],
         total: {
           label: 'Demo Store',
-          amount: '0.01'
+          amount: '0.01',
+          type: 'final'
         },
-        supportedNetworks: ['visa', 'masterCard', 'amex'],
-        merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit']
+        requiredBillingContactFields: ['postalAddress']
       };
       
       logMessage('Payment request configured: ' + JSON.stringify(paymentRequest));
@@ -169,6 +187,81 @@
             logMessage('Merchant validation failed: ' + err.message, 'error');
             session.abort();
           });
+        };
+        
+        // Handle payment method selection
+        session.onpaymentmethodselected = (event) => {
+          logMessage('Payment method selected: ' + (event.paymentMethod ? event.paymentMethod.type : 'unknown'));
+          
+          const update = {
+            newTotal: {
+              label: 'Demo Store',
+              amount: '0.01',
+              type: 'final'
+            },
+            newLineItems: [{
+              label: 'Test Item',
+              amount: '0.01',
+              type: 'final'
+            }]
+          };
+          
+          session.completePaymentMethodSelection(update);
+          logMessage('Completed payment method selection', 'success');
+        };
+        
+        // Handle shipping contact selection
+        session.onshippingcontactselected = (event) => {
+          logMessage('Shipping contact selected');
+          
+          const update = {
+            newTotal: {
+              label: 'Demo Store',
+              amount: '0.01',
+              type: 'final'
+            },
+            newLineItems: [{
+              label: 'Test Item',
+              amount: '0.01',
+              type: 'final'
+            }],
+            newShippingMethods: [{
+              label: 'Standard Shipping',
+              detail: 'Arrives in 3-5 days',
+              amount: '0.00',
+              identifier: 'standard'
+            }]
+          };
+          
+          session.completeShippingContactSelection({
+            status: ApplePaySession.STATUS_SUCCESS,
+            ...update
+          });
+          logMessage('Completed shipping contact selection', 'success');
+        };
+        
+        // Handle shipping method selection
+        session.onshippingmethodselected = (event) => {
+          logMessage('Shipping method selected: ' + (event.shippingMethod ? event.shippingMethod.identifier : 'unknown'));
+          
+          const update = {
+            newTotal: {
+              label: 'Demo Store',
+              amount: '0.01',
+              type: 'final'
+            },
+            newLineItems: [{
+              label: 'Test Item',
+              amount: '0.01',
+              type: 'final'
+            }]
+          };
+          
+          session.completeShippingMethodSelection({
+            status: ApplePaySession.STATUS_SUCCESS,
+            ...update
+          });
+          logMessage('Completed shipping method selection', 'success');
         };
         
         // Handle payment authorization
@@ -236,44 +329,10 @@
           }
         };
         
-        // Handle payment method selection
-        session.onpaymentmethodselected = (event) => {
-          logMessage('Payment method selected');
-          session.completePaymentMethodSelection({
-            paymentSummaryItems: [{
-              label: 'Demo Store',
-              amount: '0.01'
-            }]
-          });
-        };
-        
-        // Handle shipping method selection
-        session.onshippingmethodselected = (event) => {
-          logMessage('Shipping method selected');
-          session.completeShippingMethodSelection({
-            status: ApplePaySession.STATUS_SUCCESS,
-            newTotal: {
-              label: 'Demo Store',
-              amount: '0.01'
-            }
-          });
-        };
-        
-        // Handle shipping contact selection
-        session.onshippingcontactselected = (event) => {
-          logMessage('Shipping contact selected');
-          session.completeShippingContactSelection({
-            status: ApplePaySession.STATUS_SUCCESS,
-            newTotal: {
-              label: 'Demo Store',
-              amount: '0.01'
-            }
-          });
-        };
-        
         // Handle cancellation
         session.oncancel = (event) => {
           logMessage('Apple Pay session cancelled by user', 'info');
+          logMessage('Session may have been cancelled due to: timeout, user action, or system issue', 'info');
         };
         
         // Start the Apple Pay session
