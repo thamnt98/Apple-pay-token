@@ -35,10 +35,12 @@
         fetch('/validate-merchant', {  // Phải có API validate merchant session trên server
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ validationURL: event.validationURL })
         })
         .then(res => res.json())
-        .then(data => session.completeMerchantValidation(data))
+        .then(data => {
+            alert('🔁 merchantSession from server:', data);
+            session.completeMerchantValidation(data);
+})
         .catch(() => session.abort());
       };
 
