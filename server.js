@@ -25,9 +25,9 @@ const checkout = new CheckoutAPI(client);
 
 // 📦 Endpoint Apple Pay session
 app.post("/validate-merchant", async (req, res) => {
-    const { validationURL } = req.body;
+    const { validationUrl  } = req.body;
 
-    if (!validationURL) {
+    if (!validationUrl ) {
         return res.status(400).json({ error: "Missing validationURL" });
     }
 
@@ -39,7 +39,7 @@ app.post("/validate-merchant", async (req, res) => {
       domainName: config.domainName,   // Thay bằng domain frontend của bạn
       initiative: "web",
       initiativeContext: config.domainName,// Thường giống domainName
-      validationUrl,
+      validationUrl ,
     };
 
     // Gọi API tạo Apple Pay session
