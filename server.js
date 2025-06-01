@@ -31,21 +31,25 @@ app.post("/validate-merchant", async (req, res) => {
         return res.status(400).json({ error: "Missing validationURL" });
     }
 
-    try {
-        const response = await checkout.applePaySessions({
-            merchantAccount: config.merchantAccount,
-            displayName: "Demo Store",
-            domainName: config.domainName,
-            initiative: "web",
-            initiativeContext: config.domainName,
-            validationUrl: validationURL
-        });
+     try {
+    const endpoint = "/checkout/v68/applePay/sessions";
+    const body = {
+      merchantAccount: config.merchantAccount,
+      displayName: "Demo Store",
+      domainName: config.domainName,   // Thay bằng domain frontend của bạn
+      initiative: "web",
+      initiativeContext: config.domainName,// Thường giống domainName
+      validationUrl,
+    };
 
-        res.json(response);
-    } catch (err) {
-        console.error("❌ Apple Pay session error:", err.message);
-        res.status(500).json({ error: err.message });
-    }
+    // Gọi API tạo Apple Pay session
+    const response = await client.request("POST", endpoint, body);
+
+    res.json(response);
+  } catch (err) {
+    console.error("Apple Pay session error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ✅ Start server
