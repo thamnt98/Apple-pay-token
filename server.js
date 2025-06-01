@@ -1,14 +1,25 @@
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
+const fs = require("fs");
+const path = require("path");
 require("dotenv").config();
 
 const app = express();
+
+// Serve static files
 app.use(express.static("public"));
 
-// Configure CORS to allow requests to the webhook URL
+// Serve Apple Pay verification file
+app.get("/.well-known/apple-developer-merchantid-domain-association", (req, res) => {
+  // Nội dung này thường được cung cấp bởi Apple khi bạn đăng ký merchant ID
+  // Đây chỉ là file giả để phục vụ mục đích thử nghiệm
+  res.send("This is a mock Apple Pay domain verification file");
+});
+
+// Configure CORS
 app.use(cors({
-  origin: ['http://localhost:3000', 'https://webhook.site'],
+  origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -31,24 +42,26 @@ app.post("/validate-merchant", async (req, res) => {
   console.log("Received validationUrl:", validationUrl);
   
   try {
-    // Create a mock Apple Pay session response
-    // This format matches what Apple expects for merchant validation
+    // Tạo một đối tượng response theo đúng định dạng mà Apple Pay yêu cầu
+    // Tham khảo: https://developer.apple.com/documentation/apple_pay_on_the_web/applepaysession/1778021-completemerchantsessionvalidation
     const mockResponse = {
       merchantIdentifier: "merchant.com.example.demo",
       domainName: "localhost",
       displayName: "Demo Store",
-      merchantSessionIdentifier: "merchant_session_" + Date.now(),
       signature: "mock_signature_" + Date.now(),
       nonce: "mock_nonce_" + Date.now(),
-      timestamp: Math.floor(Date.now() / 1000),
-      epochTimestamp: Math.floor(Date.now() / 1000),
-      expiresAt: Math.floor(Date.now() / 1000) + 3600,
-      operationalAnalyticsIdentifier: "mock_analytics_id",
-      retries: 0
+      timestamp: Math.floor(Date.now() / 1000).toString(),
+      epochTimestamp: Math.floor(Date.now() / 1000).toString(),
+      expiresAt: Math.floor(Date.now() / 1000 + 3600).toString(),
+      merchantSessionIdentifier: "merchant_session_" + Date.now()
     };
 
     console.log("Sending mock merchant session:", JSON.stringify(mockResponse, null, 2));
-    res.json(mockResponse);
+    
+    // Trì hoãn phản hồi một chút để mô phỏng mạng thực tế
+    setTimeout(() => {
+      res.json(mockResponse);
+    }, 500);
   } catch (err) {
     console.error("Apple Pay session error:", err);
     console.error("Error details:", JSON.stringify({
