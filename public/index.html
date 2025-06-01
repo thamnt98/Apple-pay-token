@@ -1,56 +1,56 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Apple Pay PaymentData Sender with Adyen SDK</title>
-</head>
-<body>
-  <button id="apple-pay-button" style="display:none;">Pay with Apple Pay</button>
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <title>Apple Pay PaymentData Sender with Adyen SDK</title>
+  </head>
+  <body>
+    <button id="apple-pay-button" style="display:none;">Pay with Apple Pay</button>
 
-  <script>
-    if (window.ApplePaySession && ApplePaySession.canMakePayments()) {
-      document.getElementById('apple-pay-button').style.display = 'inline-block';
-    }
+    <script>
+      if (window.ApplePaySession && ApplePaySession.canMakePayments()) {
+        document.getElementById('apple-pay-button').style.display = 'inline-block';
+      }
 
-    document.getElementById('apple-pay-button').addEventListener('click', () => {
-      const paymentRequest = {
-        countryCode: 'CA',
-        currencyCode: 'CAD',
-        total: {
-          label: 'Demo Payment',
-          amount: '1.00'
-        },
-        supportedNetworks: ['visa', 'masterCard', 'amex'],
-        merchantCapabilities: ['supports3DS']
-      };
+      document.getElementById('apple-pay-button').addEventListener('click', () => {
+        const paymentRequest = {
+          countryCode: 'CA',
+          currencyCode: 'CAD',
+          total: {
+            label: 'Demo Payment',
+            amount: '1.00'
+          },
+          supportedNetworks: ['visa', 'masterCard', 'amex'],
+          merchantCapabilities: ['supports3DS']
+        };
 
-      const session = new ApplePaySession(3, paymentRequest);
+        const session = new ApplePaySession(3, paymentRequest);
 
-      session.onvalidatemerchant = (event) => {
-        fetch('/validate-merchant', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ validationURL: event.validationURL })
-        })
-        .then(res => res.json())
-        .then(merchantSession => {
-          session.completeMerchantValidation(merchantSession);
-        })
-        .catch(err => {
-          console.error('Merchant validation failed:', err);
-          session.abort();
-        });
-      };
+        session.onvalidatemerchant = (event) => {
+          fetch('/validate-merchant', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ validationURL: event.validationURL })
+          })
+          .then(res => res.json())
+          .then(merchantSession => {
+            session.completeMerchantValidation(merchantSession);
+          })
+          .catch(err => {
+            console.error('Merchant validation failed:', err);
+            session.abort();
+          });
+        };
 
-      session.onpaymentauthorized = (event) => {
-        const paymentData = event.payment.token.paymentData;
-        console.log('Payment Data:', paymentData);
+        session.onpaymentauthorized = (event) => {
+          const paymentData = event.payment.token.paymentData;
+          console.log('Payment Data:', paymentData);
 
-        // Gửi paymentData lên webhook hoặc xử lý thanh toán server side ở đây
-        session.completePayment(ApplePaySession.STATUS_SUCCESS);
-      };
+          // Gửi paymentData lên webhook hoặc xử lý thanh toán server side ở đây
+          session.completePayment(ApplePaySession.STATUS_SUCCESS);
+        };
 
-      session.begin();
-    });
-  </script>
-</body>
-</html>
+        session.begin();
+      });
+    </script>
+  </body>
+  </html>

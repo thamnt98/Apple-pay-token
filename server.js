@@ -1,12 +1,14 @@
-// server.js
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const { Client, Config, CheckoutAPI } = require("@adyen/api-library");
-
-require("dotenv").config(); // để dùng biến từ .env
+require("dotenv").config();
 
 const app = express();
+
+// 👉 Sử dụng thư mục "public" để phục vụ frontend
+app.use(express.static("public"));
+
 app.use(cors());
 app.use(bodyParser.json());
 
@@ -17,26 +19,26 @@ config.domainName = process.env.DOMAIN_NAME;
 config.merchantAccount = process.env.ADYEN_MERCHANT_ACCOUNT;
 
 const client = new Client({ config });
-client.setEnvironment("TEST"); // hoặc "LIVE" khi chạy thật
+client.setEnvironment("TEST");
 
 const checkout = new CheckoutAPI(client);
 
-// 📦 Endpoint tạo Apple Pay session
+// 📦 Endpoint Apple Pay session
 app.post("/validate-merchant", async (req, res) => {
-    const { validationUrl } = req.body;
+    const { validationURL } = req.body;
 
-    if (!validationUrl) {
-        return res.status(400).json({ error: "Missing validationUrl" });
+    if (!validationURL) {
+        return res.status(400).json({ error: "Missing validationURL" });
     }
 
     try {
         const response = await checkout.applePaySessions({
             merchantAccount: config.merchantAccount,
             displayName: "Demo Store",
-            domainName: config.domainName, // 🔴 domain frontend bạn dùng (phải đúng & đã verify trong Adyen)
+            domainName: config.domainName,
             initiative: "web",
-            initiativeContext: config.domainName, // 🔴 giống domainName
-            validationUrl
+            initiativeContext: config.domainName,
+            validationUrl: validationURL
         });
 
         res.json(response);
@@ -46,7 +48,7 @@ app.post("/validate-merchant", async (req, res) => {
     }
 });
 
-// ✅ Khởi động server
+// ✅ Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 Apple Pay session server running at http://localhost:${PORT}`);
