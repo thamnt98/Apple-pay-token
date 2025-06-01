@@ -100,22 +100,13 @@
     // Check if Apple Pay is available and properly configured
     document.addEventListener('DOMContentLoaded', () => {
       if (window.ApplePaySession) {
-        const canMakePaymentsPromise = ApplePaySession.canMakePaymentsWithActiveCard("000000000304291");
-        canMakePaymentsPromise.then((canMakePayments) => {
-          if (canMakePayments) {
-            document.getElementById('apple-pay-button').style.display = 'inline-block';
-            logMessage('Apple Pay is available with active card', 'success');
-          } else {
-            document.getElementById('apple-pay-button').style.display = 'inline-block';
-            logMessage('Apple Pay is available but no active card', 'info');
-          }
-        }).catch(err => {
-          logMessage('Error checking Apple Pay capability: ' + err.message, 'error');
-          if (ApplePaySession.canMakePayments()) {
-            document.getElementById('apple-pay-button').style.display = 'inline-block';
-            logMessage('Basic Apple Pay is available', 'info');
-          }
-        });
+        // Không kiểm tra thẻ cụ thể, chỉ kiểm tra khả năng thanh toán cơ bản
+        if (ApplePaySession.canMakePayments()) {
+          document.getElementById('apple-pay-button').style.display = 'inline-block';
+          logMessage('Apple Pay is available', 'success');
+        } else {
+          logMessage('Apple Pay is not available on this device', 'error');
+        }
       } else {
         logMessage('Apple Pay is not available on this device', 'error');
       }
@@ -124,18 +115,16 @@
     document.getElementById('apple-pay-button').addEventListener('click', () => {
       logMessage('Apple Pay button clicked');
       
-      // Configure the payment request (required to get token)
+      // Đơn giản hóa payment request
       const paymentRequest = {
         countryCode: 'CA',
         currencyCode: 'CAD',
         supportedNetworks: ['visa', 'masterCard', 'amex', 'discover'],
-        merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit'],
+        merchantCapabilities: ['supports3DS'],
         total: {
           label: 'Demo Store',
-          amount: '0.01',
-          type: 'final'
-        },
-        requiredBillingContactFields: ['postalAddress']
+          amount: '0.01'
+        }
       };
       
       logMessage('Payment request configured: ' + JSON.stringify(paymentRequest));
@@ -189,89 +178,23 @@
           });
         };
         
-        // Handle payment method selection
+        // Đơn giản hóa các callbacks để tránh lỗi
         session.onpaymentmethodselected = (event) => {
-          logMessage('Payment method selected: ' + (event.paymentMethod ? event.paymentMethod.type : 'unknown'));
-          
-          const update = {
-            newTotal: {
-              label: 'Demo Store',
-              amount: '0.01',
-              type: 'final'
-            },
-            newLineItems: [{
-              label: 'Test Item',
-              amount: '0.01',
-              type: 'final'
-            }]
-          };
-          
-          session.completePaymentMethodSelection(update);
-          logMessage('Completed payment method selection', 'success');
+          logMessage('Payment method selected');
+          session.completePaymentMethodSelection(paymentRequest.total);
         };
         
-        // Handle shipping contact selection
-        session.onshippingcontactselected = (event) => {
-          logMessage('Shipping contact selected');
-          
-          const update = {
-            newTotal: {
-              label: 'Demo Store',
-              amount: '0.01',
-              type: 'final'
-            },
-            newLineItems: [{
-              label: 'Test Item',
-              amount: '0.01',
-              type: 'final'
-            }],
-            newShippingMethods: [{
-              label: 'Standard Shipping',
-              detail: 'Arrives in 3-5 days',
-              amount: '0.00',
-              identifier: 'standard'
-            }]
-          };
-          
-          session.completeShippingContactSelection({
-            status: ApplePaySession.STATUS_SUCCESS,
-            ...update
-          });
-          logMessage('Completed shipping contact selection', 'success');
-        };
-        
-        // Handle shipping method selection
-        session.onshippingmethodselected = (event) => {
-          logMessage('Shipping method selected: ' + (event.shippingMethod ? event.shippingMethod.identifier : 'unknown'));
-          
-          const update = {
-            newTotal: {
-              label: 'Demo Store',
-              amount: '0.01',
-              type: 'final'
-            },
-            newLineItems: [{
-              label: 'Test Item',
-              amount: '0.01',
-              type: 'final'
-            }]
-          };
-          
-          session.completeShippingMethodSelection({
-            status: ApplePaySession.STATUS_SUCCESS,
-            ...update
-          });
-          logMessage('Completed shipping method selection', 'success');
-        };
-        
-        // Handle payment authorization
+        // Handle payment authorization - đây là phần quan trọng nhất
         session.onpaymentauthorized = (event) => {
           logMessage('Payment authorized by user', 'success');
           
           try {
             // Extract the Apple Pay token
-            const paymentData = event.payment.token.paymentData;
+            const token = event.payment.token;
+            const paymentData = token.paymentData;
+            
             logMessage('Apple Pay token received', 'success');
+            logMessage('Payment token data: ' + JSON.stringify(token), 'success');
             
             // Display the token in the UI
             const resultElement = document.getElementById('result');
@@ -281,30 +204,18 @@
             resultElement.style.display = 'block';
             resultContentElement.textContent = JSON.stringify(paymentData, null, 2);
             
-            // Complete the payment first to ensure Apple Pay UI closes properly
+            // Hoàn thành thanh toán ngay lập tức
             session.completePayment(ApplePaySession.STATUS_SUCCESS);
             logMessage('Apple Pay session completed successfully', 'success');
             
-            // Then send the token to our local server
-            fetch('/get-apple-pay-token', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paymentData })
-            })
-            .then(res => res.json())
-            .then(data => {
-              logMessage('Server received token successfully', 'success');
-            })
-            .catch(err => {
-              logMessage('Token processing failed: ' + err.message, 'error');
-            });
-            
-            // Send the token to the webhook URL
+            // Sau đó gửi token đến webhook
             fetch(WEBHOOK_URL, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
                 paymentData,
+                paymentMethod: token.paymentMethod,
+                transactionIdentifier: token.transactionIdentifier,
                 timestamp: new Date().toISOString(),
                 source: 'apple-pay-demo'
               })
@@ -322,6 +233,20 @@
               logMessage('Webhook error: ' + err.message, 'error');
               webhookStatusElement.className = 'status error';
               webhookStatusElement.textContent = 'Failed to send token to webhook: ' + err.message;
+            });
+            
+            // Gửi token đến server
+            fetch('/get-apple-pay-token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ paymentData })
+            })
+            .then(res => res.json())
+            .then(data => {
+              logMessage('Server received token successfully', 'success');
+            })
+            .catch(err => {
+              logMessage('Token processing failed: ' + err.message, 'error');
             });
           } catch (error) {
             logMessage('Error processing payment: ' + error.message, 'error');
