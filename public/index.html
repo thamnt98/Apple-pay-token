@@ -100,7 +100,7 @@
     // Check if Apple Pay is available and properly configured
     document.addEventListener('DOMContentLoaded', () => {
       if (window.ApplePaySession) {
-        const canMakePaymentsPromise = ApplePaySession.canMakePaymentsWithActiveCard("merchant.com.yourcompany.test");
+        const canMakePaymentsPromise = ApplePaySession.canMakePaymentsWithActiveCard("000000000304291");
         canMakePaymentsPromise.then((canMakePayments) => {
           if (canMakePayments) {
             document.getElementById('apple-pay-button').style.display = 'inline-block';
