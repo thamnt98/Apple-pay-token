@@ -25,30 +25,30 @@ const checkout = new CheckoutAPI(client);
 
 // 📦 Endpoint Apple Pay session
 app.post("/validate-merchant", async (req, res) => {
-    const { validationUrl  } = req.body;
+  const { validationUrl } = req.body;
 
-    if (!validationUrl ) {
-        return res.status(400).json({ error: "Missing validationURL" });
-    }
+  if (!validationUrl) {
+    return res.status(400).json({ error: "Missing validationUrl" });
+  }
 
-     try {
-    const endpoint = "/checkout/v68/applePay/sessions";
+  try {
     const body = {
       merchantAccount: config.merchantAccount,
       displayName: "Demo Store",
-      domainName: config.domainName,   // Thay bằng domain frontend của bạn
+      domainName: config.domainName,
       initiative: "web",
-      initiativeContext: config.domainName,// Thường giống domainName
-      validationUrl ,
+      initiativeContext: config.domainName,
+      validationUrl,
     };
 
-    const { body: responseBody } = await client.httpClient.request(
+    // Gọi API tạo session, trả về response JSON trực tiếp
+    const response = await client.httpClient.request(
       "POST",
       "/checkout/v68/applePay/sessions",
       body
     );
 
-    res.json(responseBody);
+    res.json(response);
   } catch (err) {
     console.error("Apple Pay session error:", err.message);
     res.status(500).json({ error: err.message });
