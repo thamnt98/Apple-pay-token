@@ -33,9 +33,9 @@ app.post("/validate-merchant", async (req, res) => {
         const response = await checkout.applePaySessions({
             merchantAccount: config.merchantAccount,
             displayName: "Demo Store",
-            domainName: domainName, // 🔴 domain frontend bạn dùng (phải đúng & đã verify trong Adyen)
+            domainName: config.domainName, // 🔴 domain frontend bạn dùng (phải đúng & đã verify trong Adyen)
             initiative: "web",
-            initiativeContext: domainName, // 🔴 giống domainName
+            initiativeContext: config.domainName, // 🔴 giống domainName
             validationUrl
         });
 
