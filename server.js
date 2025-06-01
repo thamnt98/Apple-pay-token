@@ -1,53 +1,55 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const fetch = require('node-fetch');
-const path = require('path');
+const cors = require('cors');
+const https = require('https');
+const fs = require('fs');
 
 const app = express();
-const PORT = 3000;
-
-// Serve static files (like index.html) from the "public" folder
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Middleware to parse JSON requests
+app.use(cors());
 app.use(bodyParser.json());
 
-// Endpoint để xử lý Apple Pay merchant validation
 app.post('/validate-merchant', async (req, res) => {
-    console.log('Using ADYEN_API_KEY:', process.env.ADYEN_API_KEY ? 'SET' : 'NOT SET');
+    const validationURL = req.body.validationURL;
 
-    try {
-        const adyenResponse = await fetch('https://checkout-test.adyen.com/v68/applePay/sessions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-API-Key': process.env.ADYEN_API_KEY,
-            },
-            body: JSON.stringify({
-                displayName: 'My Demo Store',
-                domainName: process.env.DOMAIN_NAME, // thay bằng domain thật đã xác thực
-                merchantIdentifier: process.env.ADYEN_MERCHANT_IDENTIFIER, // Apple Merchant ID
-            }),
-        });
-
-        const text = await adyenResponse.text();
-
-        if (!adyenResponse.ok) {
-            console.error('Adyen API returned error:', text);
-            return res.status(500).json({ error: text });
+    // Nếu bạn có certificate của Apple Merchant (dạng .pem hoặc .p12), sử dụng nó tại đây.
+    const options = {
+        method: 'POST',
+        hostname: new URL(validationURL).hostname,
+        path: new URL(validationURL).pathname,
+        headers: {
+            'Content-Type': 'application/json'
         }
+        // key: fs.readFileSync('cert.key'),
+        // cert: fs.readFileSync('cert.pem')
+    };
 
-        const merchantSession = JSON.parse(text);
-        console.log('Merchant session:', merchantSession);
+    const postData = JSON.stringify({
+        merchantIdentifier: process.env.ADYEN_MERCHANT_IDENTIFIER, // <-- Thay bằng ID thật
+        displayName: 'My Demo Store',
+        initiative: 'web',
+        initiativeContext: process.env.DOMAIN_NAME // <-- Thay bằng domain frontend
+    });
 
-        res.json(merchantSession);
-    } catch (e) {
-        console.error('Error calling Adyen API:', e.message);
-        res.status(500).json({ error: e.message });
-    }
+    const request = https.request(validationURL, options, (response) => {
+        let data = '';
+        response.on('data', (chunk) => data += chunk);
+        response.on('end', () => {
+            try {
+                res.json(JSON.parse(data));
+            } catch (err) {
+                res.status(500).send({ error: 'Invalid merchant validation response' });
+            }
+        });
+    });
+
+    request.on('error', (e) => {
+        console.error(e);
+        res.status(500).send({ error: 'Merchant validation failed' });
+    });
+
+    request.write(postData);
+    request.end();
 });
 
-// Start the server
-app.listen(PORT, () => {
-    console.log(`✅ Server is running on http://localhost:${PORT}`);
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Apple Pay demo server running at http://localhost:${PORT}`));
