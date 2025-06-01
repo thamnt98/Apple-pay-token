@@ -1,56 +1,161 @@
-  <!DOCTYPE html>
-  <html>
-  <head>
-    <title>Apple Pay PaymentData Sender with Adyen SDK</title>
-  </head>
-  <body>
-    <button id="apple-pay-button" style="display:none;">Pay with Apple Pay</button>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Apple Pay Token Retrieval with Adyen SDK</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    #apple-pay-button {
+      -webkit-appearance: -apple-pay-button;
+      -apple-pay-button-type: plain;
+      -apple-pay-button-style: black;
+      height: 48px;
+      width: 200px;
+      cursor: pointer;
+    }
+    #result {
+      margin-top: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      background-color: #f9f9f9;
+      display: none;
+    }
+    pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .status {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+  </style>
+</head>
+<body>
+  <h1>Apple Pay Token Retrieval</h1>
+  <p>Click the button below to get the Apple Pay token</p>
+  
+  <button id="apple-pay-button" style="display:none;"></button>
+  
+  <div id="result">
+    <h3>Apple Pay Token:</h3>
+    <pre id="result-content"></pre>
+    <div id="webhook-status" class="status"></div>
+  </div>
 
-    <script>
-      if (window.ApplePaySession && ApplePaySession.canMakePayments()) {
-        document.getElementById('apple-pay-button').style.display = 'inline-block';
-      }
+  <script>
+    // Webhook URL
+    const WEBHOOK_URL = "https://webhook.site/c37ecbc0-d876-4b23-99b8-27d428d713e6";
+    
+    // Check if Apple Pay is available
+    if (window.ApplePaySession && ApplePaySession.canMakePayments()) {
+      document.getElementById('apple-pay-button').style.display = 'inline-block';
+    }
 
-      document.getElementById('apple-pay-button').addEventListener('click', () => {
-        const paymentRequest = {
-          countryCode: 'CA',
-          currencyCode: 'CAD',
-          total: {
-            label: 'Demo Payment',
-            amount: '1.00'
-          },
-          supportedNetworks: ['visa', 'masterCard', 'amex'],
-          merchantCapabilities: ['supports3DS']
-        };
+    document.getElementById('apple-pay-button').addEventListener('click', () => {
+      // Configure the payment request (required to get token)
+      const paymentRequest = {
+        countryCode: 'CA',
+        currencyCode: 'CAD',
+        total: {
+          label: 'Demo Store',
+          amount: '0.00' // Zero amount since we're just getting the token
+        },
+        supportedNetworks: ['visa', 'masterCard', 'amex'],
+        merchantCapabilities: ['supports3DS']
+      };
 
-        const session = new ApplePaySession(3, paymentRequest);
+      // Create an Apple Pay session
+      const session = new ApplePaySession(3, paymentRequest);
 
-        session.onvalidatemerchant = (event) => {
-          fetch('/validate-merchant', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ validationUrl: event.validationURL })
+      // Handle merchant validation
+      session.onvalidatemerchant = (event) => {
+        fetch('/validate-merchant', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ validationUrl: event.validationURL })
+        })
+        .then(res => res.json())
+        .then(merchantSession => {
+          session.completeMerchantValidation(merchantSession);
+        })
+        .catch(err => {
+          console.error('Merchant validation failed:', err);
+          session.abort();
+        });
+      };
+
+      // Handle payment authorization
+      session.onpaymentauthorized = (event) => {
+        // Extract the Apple Pay token
+        const paymentData = event.payment.token.paymentData;
+        
+        // Display the token in the console
+        console.log('Apple Pay Token:', paymentData);
+        
+        // Display the token in the UI
+        const resultElement = document.getElementById('result');
+        const resultContentElement = document.getElementById('result-content');
+        const webhookStatusElement = document.getElementById('webhook-status');
+        
+        resultElement.style.display = 'block';
+        resultContentElement.textContent = JSON.stringify(paymentData, null, 2);
+        
+        // Send the token to our local server
+        fetch('/get-apple-pay-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentData })
+        })
+        .then(res => res.json())
+        .catch(err => {
+          console.error('Token processing failed:', err);
+        });
+        
+        // Send the token to the webhook URL
+        fetch(WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            paymentData,
+            timestamp: new Date().toISOString(),
+            source: 'apple-pay-demo'
           })
-          .then(res => res.json())
-          .then(merchantSession => {
-            session.completeMerchantValidation(merchantSession);
-          })
-          .catch(err => {
-            console.error('Merchant validation failed:', err);
-            session.abort();
-          });
-        };
+        })
+        .then(response => {
+          if (response.ok) {
+            webhookStatusElement.className = 'status success';
+            webhookStatusElement.textContent = 'Successfully sent token to webhook!';
+          } else {
+            throw new Error('Webhook request failed');
+          }
+        })
+        .catch(err => {
+          console.error('Webhook error:', err);
+          webhookStatusElement.className = 'status error';
+          webhookStatusElement.textContent = 'Failed to send token to webhook: ' + err.message;
+        });
+        
+        // Complete the Apple Pay session
+        session.completePayment(ApplePaySession.STATUS_SUCCESS);
+      };
 
-        session.onpaymentauthorized = (event) => {
-          const paymentData = event.payment.token.paymentData;
-          console.log('Payment Data:', paymentData);
-
-          // Gửi paymentData lên webhook hoặc xử lý thanh toán server side ở đây
-          session.completePayment(ApplePaySession.STATUS_SUCCESS);
-        };
-
-        session.begin();
-      });
-    </script>
-  </body>
-  </html>
+      // Start the Apple Pay session
+      session.begin();
+    });
+  </script>
+</body>
+</html>
