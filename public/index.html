@@ -38,7 +38,6 @@
         })
         .then(res => res.json())
         .then(data => {
-            alert('🔁 merchantSession from server:', data);
             session.completeMerchantValidation(data);
 })
         .catch(() => session.abort());
