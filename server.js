@@ -18,9 +18,9 @@ app.use(bodyParser.json());
 
 const config = new Config();
 // Using hardcoded values instead of environment variables
-config.apiKey = "YOUR_ADYEN_API_KEY"; // Replace with actual API key
-config.merchantAccount = "YOUR_MERCHANT_ACCOUNT"; // Replace with actual merchant account
-config.domainName = "localhost"; // For development
+config.apiKey = process.env.ADYEN_API_KEY; // Replace with actual API key
+config.merchantAccount = process.env.ADYEN_MERCHANT_ACCOUNT; // Replace with actual merchant account
+config.domainName = process.env.DOMAIN_NAME; // For development
 
 const client = new Client({ config });
 client.setEnvironment("TEST");
