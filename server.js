@@ -20,27 +20,19 @@ const checkout = new CheckoutAPI(client);
 
 app.post('/validate-merchant', async (req, res) => {
   try {
-    if (!process.env.DOMAIN_NAME || !process.env.ADYEN_MERCHANT_IDENTIFIER) {
-      return res.status(500).json({ error: 'Missing DOMAIN_NAME or ADYEN_MERCHANT_IDENTIFIER env variable' });
-    }
-
-    const request = {
-      merchantIdentifier: process.env.ADYEN_MERCHANT_IDENTIFIER,
-      domainName: process.env.DOMAIN_NAME,
-      displayName: 'My Demo Store',
-    };
-
-    // Gọi SDK Adyen để tạo merchant session Apple Pay
-    const response = await checkout.applePaySessions(request);
+    const response = await checkout.sessions({
+      merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT,
+      applePaySessionRequest: {
+        displayName: 'My Demo Store',
+        domainName: process.env.DOMAIN_NAME,
+        merchantIdentifier: process.env.ADYEN_MERCHANT_IDENTIFIER,
+      },
+    });
 
     res.json(response);
-  } catch (error) {
-    console.error('Error in Adyen Apple Pay session:', error);
-    if (error.response) {
-      res.status(error.response.status).json(error.response.data);
-    } else {
-      res.status(500).json({ error: error.message });
-    }
+  } catch (e) {
+    console.error('Error in Adyen Apple Pay session:', e);
+    res.status(500).json({ error: e.message });
   }
 });
 
