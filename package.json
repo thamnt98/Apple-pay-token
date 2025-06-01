@@ -1,4 +1,23 @@
 {
+  "name": "apple-pay-token",
+  "version": "1.0.0",
+  "description": "To make it easy for you to get started with GitLab, here's a list of recommended next steps.",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thamnt9498/apple-pay-token.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/thamnt9498/apple-pay-token/issues"
+  },
+  "homepage": "https://github.com/thamnt9498/apple-pay-token#readme",
   "dependencies": {
     "@adyen/api-library": "^27.0.0",
     "body-parser": "^2.2.0",
