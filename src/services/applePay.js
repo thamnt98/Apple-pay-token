@@ -136,20 +136,44 @@ class ApplePayService {
       
       const validationData = await response.json();
       logger.info('Merchant validation successful');
-      logger.info('Validation data:', JSON.stringify(validationData, null, 2));
+      logger.info('Raw validation data:', JSON.stringify(validationData, null, 2));
+
+      // Extract data field if it exists
+      const data = validationData.data ? JSON.parse(validationData.data) : validationData;
       
-      // Return the validation data in the format expected by Apple Pay
-      return {
-        merchantIdentifier: validationData.merchantIdentifier || merchantIdentifier,
-        domainName: validationData.domainName || domainName,
-        displayName: validationData.displayName || displayName,
-        merchantSessionIdentifier: validationData.merchantSessionIdentifier,
-        signature: validationData.signature,
-        nonce: validationData.nonce,
-        timestamp: validationData.timestamp,
-        epochTimestamp: validationData.epochTimestamp,
-        expiresAt: validationData.expiresAt
+      // Construct the proper validation response format
+      const validationResponse = {
+        merchantIdentifier: data.merchantIdentifier || merchantIdentifier,
+        domainName: data.domainName || domainName,
+        displayName: data.displayName || displayName,
+        merchantSessionIdentifier: data.merchantSessionIdentifier || validationData.merchantSessionIdentifier,
+        signature: data.signature || validationData.signature,
+        nonce: data.nonce || validationData.nonce,
+        timestamp: data.timestamp || validationData.timestamp || Math.floor(Date.now() / 1000).toString(),
+        epochTimestamp: data.epochTimestamp || validationData.epochTimestamp || Math.floor(Date.now() / 1000).toString(),
+        expiresAt: data.expiresAt || validationData.expiresAt || (Math.floor(Date.now() / 1000) + 3600).toString()
       };
+
+      // Verify all required fields are present
+      const requiredFields = [
+        'merchantIdentifier',
+        'merchantSessionIdentifier',
+        'signature',
+        'nonce',
+        'timestamp',
+        'epochTimestamp',
+        'expiresAt'
+      ];
+
+      const missingFields = requiredFields.filter(field => !validationResponse[field]);
+      if (missingFields.length > 0) {
+        logger.error('Missing required fields in validation response:', missingFields);
+        logger.error('Full validation response:', validationResponse);
+        throw new Error(`Missing required validation fields: ${missingFields.join(', ')}`);
+      }
+
+      logger.info('Processed validation response:', JSON.stringify(validationResponse, null, 2));
+      return validationResponse;
     } catch (error) {
       logger.error('Error validating merchant:', error);
       throw error;
