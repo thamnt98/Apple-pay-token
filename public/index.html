@@ -1,270 +1,43 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Apple Pay Token Retrieval</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-    #apple-pay-button {
-      -webkit-appearance: -apple-pay-button;
-      -apple-pay-button-type: plain;
-      -apple-pay-button-style: black;
-      height: 48px;
-      width: 200px;
-      cursor: pointer;
-    }
-    .custom-button {
-      background-color: black;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      padding: 12px 24px;
-      font-size: 16px;
-      cursor: pointer;
-      margin-top: 10px;
-    }
-    #result {
-      margin-top: 20px;
-      padding: 15px;
-      border: 1px solid #ddd;
-      border-radius: 5px;
-      background-color: #f9f9f9;
-      display: none;
-    }
-    pre {
-      white-space: pre-wrap;
-      word-wrap: break-word;
-    }
-    .status {
-      margin-top: 10px;
-      padding: 10px;
-      border-radius: 4px;
-    }
-    .success {
-      background-color: #d4edda;
-      color: #155724;
-    }
-    .error {
-      background-color: #f8d7da;
-      color: #721c24;
-    }
-    #debug-log {
-      margin-top: 20px;
-      padding: 15px;
-      border: 1px solid #ddd;
-      border-radius: 5px;
-      background-color: #f8f9fa;
-      max-height: 300px;
-      overflow-y: auto;
-    }
-    .log-entry {
-      margin-bottom: 5px;
-      font-family: monospace;
-    }
-    .log-error {
-      color: #dc3545;
-    }
-    .log-info {
-      color: #0d6efd;
-    }
-    .log-success {
-      color: #198754;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adyen Apple Pay Integration</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Adyen Web UI CSS -->
+    <link rel="stylesheet" href="https://checkoutshopper-live.adyen.com/checkoutshopper/sdk/5.40.0/adyen.css">
 </head>
 <body>
-  <h1>Apple Pay Token Retrieval</h1>
-  <p>Click the button below to get the Apple Pay token</p>
-  
-  <button id="apple-pay-button" style="display:none;"></button>
-  <button id="custom-button" class="custom-button" style="display:none;">Use Custom Apple Pay Flow</button>
-  
-  <div id="result">
-    <h3>Apple Pay Token:</h3>
-    <pre id="result-content"></pre>
-    <div id="webhook-status" class="status"></div>
-  </div>
-  
-  <div id="debug-log">
-    <h3>Debug Log:</h3>
-    <div id="log-entries"></div>
-  </div>
-
-  <script>
-    // Debug logging function
-    function logMessage(message, type = 'info') {
-      const logEntries = document.getElementById('log-entries');
-      const entry = document.createElement('div');
-      entry.className = `log-entry log-${type}`;
-      entry.textContent = `[${new Date().toISOString()}] ${message}`;
-      logEntries.appendChild(entry);
-      console.log(`[${type}] ${message}`);
-    }
+    <div class="container">
+        <div class="header">
+            <h1>Adyen Apple Pay Integration</h1>
+        </div>
+        
+        <div class="payment-container">
+            <div id="payment-status" class="payment-status"></div>
+            
+            <div id="payment-section">
+                <h2>Make a Payment</h2>
+                <div class="amount-section">
+                    <label for="amount">Amount (USD):</label>
+                    <input type="number" id="amount" value="10.00" min="0.01" step="0.01">
+                </div>
+                
+                <div id="apple-pay-button" class="apple-pay-button"></div>
+                
+                <div id="adyen-payment-container"></div>
+                
+                <div class="log-section">
+                    <h3>Payment Process Logs</h3>
+                    <div id="log-container" class="log-container"></div>
+                </div>
+            </div>
+        </div>
+    </div>
     
-    // Webhook URL
-    const WEBHOOK_URL = "https://webhook.site/c37ecbc0-d876-4b23-99b8-27d428d713e6";
-    
-    // Check if Apple Pay is available
-    document.addEventListener('DOMContentLoaded', () => {
-      if (window.ApplePaySession) {
-        if (ApplePaySession.canMakePayments()) {
-          document.getElementById('apple-pay-button').style.display = 'inline-block';
-          document.getElementById('custom-button').style.display = 'inline-block';
-          logMessage('Apple Pay is available', 'success');
-        } else {
-          logMessage('Apple Pay is not available on this device', 'error');
-        }
-      } else {
-        logMessage('Apple Pay is not available on this device', 'error');
-      }
-    });
-
-    // Hàm khởi tạo Apple Pay session
-    function startApplePaySession(version = 1) {
-      logMessage(`Starting Apple Pay session with version ${version}`);
-      
-      // Cấu hình payment request đơn giản nhất có thể
-      const paymentRequest = {
-        countryCode: 'US',
-        currencyCode: 'USD',
-        supportedNetworks: ['visa', 'masterCard', 'amex'],
-        merchantCapabilities: ['supports3DS'],
-        total: {
-          label: 'Demo Store',
-          amount: '1.00'
-        }
-      };
-      
-      logMessage('Payment request configured: ' + JSON.stringify(paymentRequest));
-
-      try {
-        // Tạo phiên Apple Pay
-        const session = new ApplePaySession(version, paymentRequest);
-        
-        // Xử lý xác thực merchant
-        session.onvalidatemerchant = (event) => {
-          logMessage('Merchant validation requested. ValidationURL: ' + event.validationURL);
-          
-          fetch('/validate-merchant', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ validationUrl: event.validationURL })
-          })
-          .then(res => {
-            if (!res.ok) {
-              logMessage(`HTTP error! Status: ${res.status}`, 'error');
-              throw new Error(`HTTP error! Status: ${res.status}`);
-            }
-            return res.json();
-          })
-          .then(merchantSession => {
-            logMessage('Merchant validation successful', 'success');
-            
-            try {
-              session.completeMerchantValidation(merchantSession);
-              logMessage('Completed merchant validation', 'success');
-            } catch (validationError) {
-              logMessage('Error completing merchant validation: ' + validationError.message, 'error');
-              session.abort();
-            }
-          })
-          .catch(err => {
-            logMessage('Merchant validation failed: ' + err.message, 'error');
-            session.abort();
-          });
-        };
-        
-        // Xử lý thanh toán được ủy quyền
-        session.onpaymentauthorized = (event) => {
-          logMessage('Payment authorized by user', 'success');
-          
-          try {
-            // Lấy token Apple Pay
-            const token = event.payment.token;
-            const paymentData = token.paymentData;
-            
-            logMessage('Apple Pay token received', 'success');
-            
-            // Hiển thị token trong UI
-            const resultElement = document.getElementById('result');
-            const resultContentElement = document.getElementById('result-content');
-            resultElement.style.display = 'block';
-            resultContentElement.textContent = JSON.stringify(paymentData, null, 2);
-            
-            // Hoàn thành thanh toán ngay lập tức
-            session.completePayment(ApplePaySession.STATUS_SUCCESS);
-            logMessage('Apple Pay session completed successfully', 'success');
-            
-            // Gửi token đến webhook
-            fetch(WEBHOOK_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                paymentData,
-                paymentMethod: token.paymentMethod,
-                transactionIdentifier: token.transactionIdentifier,
-                timestamp: new Date().toISOString(),
-                source: 'apple-pay-demo'
-              })
-            })
-            .then(response => {
-              if (response.ok) {
-                document.getElementById('webhook-status').className = 'status success';
-                document.getElementById('webhook-status').textContent = 'Successfully sent token to webhook!';
-                logMessage('Successfully sent token to webhook', 'success');
-              } else {
-                throw new Error('Webhook request failed');
-              }
-            })
-            .catch(err => {
-              logMessage('Webhook error: ' + err.message, 'error');
-              document.getElementById('webhook-status').className = 'status error';
-              document.getElementById('webhook-status').textContent = 'Failed to send token to webhook: ' + err.message;
-            });
-          } catch (error) {
-            logMessage('Error processing payment: ' + error.message, 'error');
-            session.completePayment(ApplePaySession.STATUS_FAILURE);
-          }
-        };
-        
-        // Xử lý hủy
-        session.oncancel = (event) => {
-          logMessage('Apple Pay session cancelled by user', 'info');
-          
-          // Hiển thị thông tin chi tiết về lỗi
-          logMessage('Kiểm tra các vấn đề sau:', 'info');
-          logMessage('1. Đảm bảo bạn đã thiết lập domain verification cho Apple Pay', 'info');
-          logMessage('2. Đảm bảo bạn đã đăng ký merchant ID với Apple', 'info');
-          logMessage('3. Đảm bảo bạn đã thêm thẻ vào Apple Wallet', 'info');
-          logMessage('4. Thử với phiên bản ApplePaySession khác', 'info');
-        };
-        
-        // Bắt đầu phiên Apple Pay
-        session.begin();
-        return session;
-      } catch (error) {
-        logMessage('Error creating Apple Pay session: ' + error.message, 'error');
-        return null;
-      }
-    }
-
-    // Sự kiện cho nút Apple Pay
-    document.getElementById('apple-pay-button').addEventListener('click', () => {
-      logMessage('Apple Pay button clicked');
-      startApplePaySession(1);
-    });
-    
-    // Sự kiện cho nút Custom
-    document.getElementById('custom-button').addEventListener('click', () => {
-      logMessage('Custom button clicked');
-      startApplePaySession(3);
-    });
-  </script>
+    <!-- Adyen Web UI JS -->
+    <script src="https://checkoutshopper-live.adyen.com/checkoutshopper/sdk/5.40.0/adyen.js"></script>
+    <script src="app.js"></script>
 </body>
-</html>
+</html> 

@@ -1,28 +1,24 @@
 {
-  "name": "apple-pay-token",
+  "name": "adyen-apple-pay",
   "version": "1.0.0",
-  "description": "To make it easy for you to get started with GitLab, here's a list of recommended next steps.",
-  "main": "server.js",
+  "description": "Project to get Apple Pay tokens using Adyen SDK",
+  "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/thamnt9498/apple-pay-token.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/thamnt9498/apple-pay-token/issues"
-  },
-  "homepage": "https://github.com/thamnt9498/apple-pay-token#readme",
   "dependencies": {
-    "@adyen/api-library": "^27.0.0",
-    "body-parser": "^2.2.0",
+    "@adyen/api-library": "^14.4.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.5.0",
-    "express": "^5.1.0"
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "node-fetch": "^2.7.0",
+    "winston": "^3.10.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
