@@ -103,9 +103,15 @@ class ApplePayService {
         ? 'https://checkout-live.adyen.com/v70'
         : 'https://checkout-test.adyen.com/v70';
       
-      const merchantIdentifier = process.env.APPLE_PAY_MERCHANT_IDENTIFIER || 'merchant.com.yourcompany.test';
-      const domainName = process.env.APPLE_PAY_DOMAIN || 'localhost';
+      const merchantIdentifier = process.env.APPLE_PAY_MERCHANT_IDENTIFIER;
+      const domainName = process.env.APPLE_PAY_DOMAIN || 'apple-pay-token-production.up.railway.app';
       const displayName = process.env.APPLE_PAY_DISPLAY_NAME || 'Adyen Apple Pay Demo';
+      
+      if (!merchantIdentifier) {
+        throw new Error('APPLE_PAY_MERCHANT_IDENTIFIER is not configured');
+      }
+
+      logger.info(`Using configuration: merchantIdentifier=${merchantIdentifier}, domain=${domainName}, displayName=${displayName}`);
       
       // Use the correct request structure for Adyen's Apple Pay session endpoint
       const response = await fetch(`${baseUrl}/applePay/sessions`, {
@@ -125,12 +131,6 @@ class ApplePayService {
       if (!response.ok) {
         const errorText = await response.text();
         logger.error(`Failed to validate merchant: ${response.status} ${errorText}`);
-        
-        if (process.env.NODE_ENV !== 'production') {
-          logger.info('Using mock validation response for development');
-          return this.createMockValidationResponse();
-        }
-        
         throw new Error(`Merchant validation failed: ${response.status} ${errorText}`);
       }
       
@@ -152,12 +152,6 @@ class ApplePayService {
       };
     } catch (error) {
       logger.error('Error validating merchant:', error);
-      
-      if (process.env.NODE_ENV !== 'production') {
-        logger.info('Using mock validation response after error');
-        return this.createMockValidationResponse();
-      }
-      
       throw error;
     }
   }

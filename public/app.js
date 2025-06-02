@@ -178,6 +178,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         merchantIdentifier: merchantIdentifier
                     },
                     paymentRequest: {
+                        version: 3, // Specify Apple Pay API version
                         currencyCode: 'USD',
                         countryCode: 'US',
                         total: {
@@ -185,26 +186,46 @@ document.addEventListener('DOMContentLoaded', async () => {
                             amount: getAmountInCents() / 100,
                             type: 'final'
                         },
+                        lineItems: [
+                            {
+                                label: 'Total',
+                                amount: getAmountInCents() / 100,
+                                type: 'final'
+                            }
+                        ],
                         merchantCapabilities: [
                             'supports3DS',
                             'supportsCredit',
                             'supportsDebit'
                         ],
-                        supportedNetworks: ['visa', 'masterCard', 'amex', 'discover'],
-                        requiredBillingContactFields: ['postalAddress', 'name', 'phone', 'email'],
+                        supportedNetworks: ['visa', 'masterCard', 'amex'],
+                        requiredBillingContactFields: ['name', 'phone', 'email', 'postalAddress'],
                         requiredShippingContactFields: [],
-                        shippingType: 'shipping'
+                        shippingType: 'delivery'
                     },
                     onClick: (resolve, reject) => {
-                        // Log when Apple Pay button is clicked
-                        log('Apple Pay button clicked', 'info');
-                        resolve();
+                        try {
+                            log('Apple Pay button clicked', 'info');
+                            // Verify amount is valid
+                            const amount = getAmountInCents();
+                            if (amount <= 0) {
+                                reject(new Error('Invalid amount'));
+                                return;
+                            }
+                            resolve();
+                        } catch (error) {
+                            reject(error);
+                        }
                     },
                     onAuthorized: (resolve, reject, event) => {
-                        // Log the authorized payment data
-                        log('Payment authorized by user', 'success');
-                        console.log('Authorized payment data:', event.payment);
-                        resolve(event.payment);
+                        try {
+                            log('Payment authorized by user', 'success');
+                            console.log('Authorized payment data:', event.payment);
+                            resolve(event.payment);
+                        } catch (error) {
+                            console.error('Authorization error:', error);
+                            reject(error);
+                        }
                     },
                     onValidateMerchant: async (resolve, reject, validationURL) => {
                         try {
@@ -216,7 +237,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 headers: {
                                     'Content-Type': 'application/json'
                                 },
-                                body: JSON.stringify({ validationURL })
+                                body: JSON.stringify({ 
+                                    validationURL,
+                                    domain: window.location.hostname
+                                })
                             });
                             
                             if (!response.ok) {
@@ -249,15 +273,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                             console.log('Payment data:', state.data);
 
                             // Process the payment
-                            await handleApplePaySubmit(state.data);
+                            const response = await handleApplePaySubmit(state.data);
                             
-                            // Set success status
-                            component.setStatus('success');
-                            log('Payment processed successfully', 'success');
+                            if (response.resultCode === "Authorised") {
+                                // Set success status
+                                component.setStatus('success');
+                                log('Payment processed successfully', 'success');
+                            } else {
+                                throw new Error(`Payment failed: ${response.resultCode}`);
+                            }
                         } catch (error) {
                             log(`Payment processing error: ${error.message}`, 'error');
                             console.error('Processing error:', error);
                             component.setStatus('error');
+                            throw error;
                         }
                     },
                     onCancel: () => {
@@ -329,9 +358,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             // Log the webhook response
             log(`Webhook response: ${JSON.stringify(result)}`, 'info');
+            return result;
         } catch (error) {
             log(`Error processing payment: ${error.message}`, 'error');
             showStatus(`Error: ${error.message}`, 'error');
+            throw error;
         }
     }
     
