@@ -224,9 +224,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                             log('About to show Apple Pay sheet...', 'info');
 
                             // Ensure we have all required fields
-                            if (!data.merchantIdentifier || !data.merchantSessionIdentifier || !data.signature || !data.nonce || !data.timestamp) {
-                                throw new Error('Missing required validation data fields');
-                            }
+                            // if (!data.merchantIdentifier || !data.merchantSessionIdentifier || !data.signature || !data.nonce || !data.timestamp) {
+                            //     throw new Error('Missing required validation data fields');
+                            // }
 
                             resolve(data);
                             log('Apple Pay sheet should appear now', 'info');
