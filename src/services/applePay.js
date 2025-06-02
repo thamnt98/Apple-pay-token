@@ -108,6 +108,7 @@ class ApplePayService {
       const displayName = process.env.APPLE_PAY_DISPLAY_NAME || 'Adyen Apple Pay Demo';
       
       // Make a request to Adyen's merchant validation endpoint
+      // Note: Adyen expects 'validationUrl' (lowercase 'u'), not 'validationURL'
       const response = await fetch(`${baseUrl}/applePay/sessions`, {
         method: 'POST',
         headers: {
@@ -118,7 +119,7 @@ class ApplePayService {
           displayName: displayName,
           domainName: domainName,
           merchantIdentifier: merchantIdentifier,
-          validationURL: validationURL
+          validationUrl: validationURL  // Changed from validationURL to validationUrl
         })
       });
       
