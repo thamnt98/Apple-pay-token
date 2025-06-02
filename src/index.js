@@ -5,6 +5,7 @@ const path = require('path');
 const logger = require('./utils/logger');
 const { setupAdyen } = require('./services/adyen');
 const webhookService = require('./services/webhook');
+const applePayService = require('./services/applePay');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -35,6 +36,17 @@ app.post('/api/getPaymentMethods', async (req, res) => {
   }
 });
 
+app.post('/api/getApplePaySession', async (req, res) => {
+  try {
+    logger.info('Getting Apple Pay session');
+    const session = await applePayService.getSession();
+    res.json(session);
+  } catch (error) {
+    logger.error('Error getting Apple Pay session:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/submitApplePayToken', async (req, res) => {
   try {
     const { token } = req.body;
@@ -44,10 +56,13 @@ app.post('/api/submitApplePayToken', async (req, res) => {
       return res.status(400).json({ error: 'No Apple Pay token provided' });
     }
     
-    logger.info('Received Apple Pay token, sending to webhook');
+    logger.info('Received Apple Pay token, processing...');
+    
+    // Process the token with the Apple Pay service
+    const processedData = await applePayService.processToken(token);
     
     // Send the payment data to webhook
-    const result = await webhookService.sendToWebhook(token);
+    const result = await webhookService.sendToWebhook(processedData);
     
     res.json({ success: true, result });
   } catch (error) {
