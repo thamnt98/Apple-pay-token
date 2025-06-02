@@ -113,6 +113,17 @@ class ApplePayService {
 
       logger.info(`Using configuration: merchantIdentifier=${merchantIdentifier}, domain=${domainName}, displayName=${displayName}`);
       
+      // Log the request payload for debugging
+      const requestPayload = {
+        merchantAccount: this.adyenInstance.merchantAccount,
+        displayName: displayName,
+        domainName: domainName,
+        merchantIdentifier: merchantIdentifier,
+        validationURL: validationURL
+      };
+
+      logger.info('Sending request to Adyen:', JSON.stringify(requestPayload, null, 2));
+      
       // Use the correct request structure for Adyen's Apple Pay session endpoint
       const response = await fetch(`${baseUrl}/applePay/sessions`, {
         method: 'POST',
@@ -120,26 +131,41 @@ class ApplePayService {
           'Content-Type': 'application/json',
           'x-API-key': this.adyenInstance.client.config.apiKey
         },
-        body: JSON.stringify({
-          displayName: displayName,
-          domainName: domainName,
-          merchantIdentifier: merchantIdentifier,
-          initiative: "web"
-        })
+        body: JSON.stringify(requestPayload)
       });
       
+      // Get the raw response text first
+      const responseText = await response.text();
+      logger.info('Raw response from Adyen:', responseText);
+
       if (!response.ok) {
-        const errorText = await response.text();
-        logger.error(`Failed to validate merchant: ${response.status} ${errorText}`);
-        throw new Error(`Merchant validation failed: ${response.status} ${errorText}`);
+        logger.error(`Failed to validate merchant: ${response.status} ${responseText}`);
+        throw new Error(`Merchant validation failed: ${response.status} ${responseText}`);
       }
       
-      const validationData = await response.json();
+      // Try to parse the response as JSON
+      let validationData;
+      try {
+        validationData = JSON.parse(responseText);
+      } catch (parseError) {
+        logger.error('Failed to parse Adyen response as JSON:', parseError);
+        logger.error('Raw response was:', responseText);
+        throw new Error('Invalid JSON response from Adyen');
+      }
+
       logger.info('Merchant validation successful');
       logger.info('Raw validation data:', JSON.stringify(validationData, null, 2));
 
       // Extract data field if it exists
-      const data = validationData.data ? JSON.parse(validationData.data) : validationData;
+      let data = validationData;
+      if (validationData.data) {
+        try {
+          data = typeof validationData.data === 'string' ? JSON.parse(validationData.data) : validationData.data;
+        } catch (parseError) {
+          logger.error('Failed to parse data field:', parseError);
+          data = validationData;
+        }
+      }
       
       // Construct the proper validation response format
       const validationResponse = {
