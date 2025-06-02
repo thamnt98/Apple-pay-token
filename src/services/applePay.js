@@ -114,42 +114,68 @@ class ApplePayService {
       logger.info(`Using configuration: merchantIdentifier=${merchantIdentifier}, domain=${domainName}, displayName=${displayName}`);
       
       // Use the correct request structure for Adyen's Apple Pay session endpoint
+      const requestBody = {
+        displayName: displayName,
+        domainName: domainName,
+        merchantIdentifier: merchantIdentifier,
+        initiative: "web",
+        validationURL: validationURL
+      };
+
+      logger.info('Sending validation request to Adyen:', JSON.stringify(requestBody, null, 2));
+      
       const response = await fetch(`${baseUrl}/applePay/sessions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-API-key': this.adyenInstance.client.config.apiKey
         },
-        body: JSON.stringify({
-          displayName: displayName,
-          domainName: domainName,
-          merchantIdentifier: merchantIdentifier,
-          initiative: "web"
-        })
+        body: JSON.stringify(requestBody)
       });
       
+      const responseText = await response.text();
+      logger.info('Raw response from Adyen:', responseText);
+
       if (!response.ok) {
-        const errorText = await response.text();
-        logger.error(`Failed to validate merchant: ${response.status} ${errorText}`);
-        throw new Error(`Merchant validation failed: ${response.status} ${errorText}`);
+        logger.error(`Failed to validate merchant: ${response.status} ${responseText}`);
+        throw new Error(`Merchant validation failed: ${response.status} ${responseText}`);
       }
       
-      const validationData = await response.json();
-      logger.info('Merchant validation successful');
-      logger.info('Validation data:', JSON.stringify(validationData, null, 2));
+      let validationData;
+      try {
+        validationData = JSON.parse(responseText);
+      } catch (e) {
+        logger.error('Failed to parse validation response:', e);
+        throw new Error('Invalid validation response format');
+      }
+
+      logger.info('Parsed validation data:', JSON.stringify(validationData, null, 2));
+
+      // Ensure all required fields are present
+      const requiredFields = ['merchantIdentifier', 'merchantSessionIdentifier', 'signature', 'nonce', 'timestamp'];
+      const missingFields = requiredFields.filter(field => !validationData[field]);
       
-      // Return the validation data in the format expected by Apple Pay
-      return {
-        merchantIdentifier: validationData.merchantIdentifier || merchantIdentifier,
-        domainName: validationData.domainName || domainName,
-        displayName: validationData.displayName || displayName,
+      if (missingFields.length > 0) {
+        logger.error('Missing required fields in validation data:', missingFields);
+        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+      }
+
+      // Format the response exactly as Apple Pay expects it
+      const formattedResponse = {
+        merchantIdentifier: validationData.merchantIdentifier,
+        domainName: domainName,
+        displayName: displayName,
         merchantSessionIdentifier: validationData.merchantSessionIdentifier,
         signature: validationData.signature,
         nonce: validationData.nonce,
         timestamp: validationData.timestamp,
-        epochTimestamp: validationData.epochTimestamp,
-        expiresAt: validationData.expiresAt
+        epochTimestamp: validationData.epochTimestamp || Math.floor(Date.now() / 1000).toString(),
+        expiresAt: validationData.expiresAt || (Math.floor(Date.now() / 1000) + 3600).toString()
       };
+
+      logger.info('Formatted validation response:', JSON.stringify(formattedResponse, null, 2));
+      return formattedResponse;
+
     } catch (error) {
       logger.error('Error validating merchant:', error);
       throw error;
