@@ -107,6 +107,7 @@ class ApplePayService {
       const domainName = process.env.APPLE_PAY_DOMAIN || 'localhost';
       const displayName = process.env.APPLE_PAY_DISPLAY_NAME || 'Adyen Apple Pay Demo';
       
+      // Use the correct request structure for Adyen's Apple Pay session endpoint
       const response = await fetch(`${baseUrl}/applePay/sessions`, {
         method: 'POST',
         headers: {
@@ -114,13 +115,10 @@ class ApplePayService {
           'x-API-key': this.adyenInstance.client.config.apiKey
         },
         body: JSON.stringify({
-          merchantAccount: this.adyenInstance.merchantAccount,
           displayName: displayName,
           domainName: domainName,
-          initiative: "web",
-          initiativeContext: domainName,
-          validationURL: validationURL,
-          merchantIdentifier: merchantIdentifier
+          merchantIdentifier: merchantIdentifier,
+          initiative: "web"
         })
       });
       
