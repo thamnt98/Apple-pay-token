@@ -218,50 +218,65 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const data = await response.json();
                             log('Merchant validation successful', 'success');
                             console.log('Validation response:', data);
+                            log('About to show Apple Pay sheet...', 'info');
                             resolve(data);
+                            log('Apple Pay sheet should appear now', 'info');
                         } catch (error) {
                             log(`Merchant validation error: ${error.message}`, 'error');
                             console.error('Validation error:', error);
                             reject(error);
                         }
                     },
+                    onPaymentMethodSelected: (resolve, reject, event) => {
+                        log('Payment method selected by user', 'info');
+                        console.log('Payment method event:', event);
+                        try {
+                            const total = {
+                                label: applePayConfig.displayName || 'Adyen Apple Pay Demo',
+                                type: 'final',
+                                amount: (getAmountInCents() / 100).toString()
+                            };
+                            log(`Updating total amount: ${total.amount}`, 'info');
+                            resolve({
+                                newTotal: total
+                            });
+                        } catch (error) {
+                            log(`Error in payment method selection: ${error.message}`, 'error');
+                            console.error('Payment method selection error:', error);
+                            reject(error);
+                        }
+                    },
                     onPaymentAuthorized: async (resolve, reject, event) => {
                         try {
-                            log('Payment authorized by user', 'success');
-                            console.log('Payment data:', event.payment);
+                            log('Payment authorized by user - processing payment...', 'success');
+                            console.log('Full payment data:', event.payment);
                             
                             // Process the payment
+                            log('Sending payment data to server...', 'info');
                             const response = await handleApplePaySubmit(event.payment);
                             
                             if (response && response.resultCode === "Authorised") {
                                 log('Payment processed successfully', 'success');
                                 resolve(event.payment);
                             } else {
-                                throw new Error('Payment processing failed');
+                                const errorMsg = response ? `Payment failed: ${response.resultCode}` : 'Payment processing failed';
+                                log(errorMsg, 'error');
+                                throw new Error(errorMsg);
                             }
                         } catch (error) {
                             log(`Payment processing error: ${error.message}`, 'error');
-                            console.error('Processing error:', error);
+                            console.error('Processing error details:', error);
                             reject(error);
                         }
                     },
-                    onPaymentMethodSelected: (resolve, reject, event) => {
-                        log('Payment method selected', 'info');
-                        resolve({
-                            newTotal: {
-                                label: applePayConfig.displayName || 'Adyen Apple Pay Demo',
-                                type: 'final',
-                                amount: (getAmountInCents() / 100).toString()
-                            }
-                        });
-                    },
                     onCancel: () => {
                         log('Apple Pay payment cancelled by user', 'info');
+                        console.log('Payment sheet was dismissed by user');
                     },
                     onError: (error) => {
                         log(`Apple Pay error: ${error.message}`, 'error');
-                        log(`Apple Pay error: ${error}`, 'error');
-                        console.error('Apple Pay error details:', error);
+                        log(`Apple Pay error details: ${JSON.stringify(error)}`, 'error');
+                        console.error('Full Apple Pay error:', error);
                         showStatus(`Error: ${error.message}`, 'error');
                     }
                 };
