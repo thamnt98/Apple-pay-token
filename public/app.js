@@ -177,13 +177,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         merchantName: applePayConfig.displayName || 'Adyen Apple Pay Demo',
                         merchantIdentifier: merchantIdentifier
                     },
-                    // Add required payment request data
                     paymentRequest: {
                         currencyCode: 'USD',
                         countryCode: 'US',
                         total: {
                             label: applePayConfig.displayName || 'Adyen Apple Pay Demo',
-                            amount: getAmountInCents() / 100, // Convert cents to dollars for Apple Pay
+                            amount: getAmountInCents() / 100,
                             type: 'final'
                         },
                         merchantCapabilities: [
@@ -191,15 +190,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                             'supportsCredit',
                             'supportsDebit'
                         ],
-                        supportedNetworks: ['visa', 'masterCard', 'amex'],
-                        requiredBillingContactFields: ['postalAddress', 'name'],
-                        requiredShippingContactFields: []
+                        supportedNetworks: ['visa', 'masterCard', 'amex', 'discover'],
+                        requiredBillingContactFields: ['postalAddress', 'name', 'phone', 'email'],
+                        requiredShippingContactFields: [],
+                        shippingType: 'shipping'
                     },
-                    // Add session data if available from Adyen API
-                    ...(applePayConfig.sessionData && { sessionData: applePayConfig.sessionData }),
+                    onClick: (resolve, reject) => {
+                        // Log when Apple Pay button is clicked
+                        log('Apple Pay button clicked', 'info');
+                        resolve();
+                    },
+                    onAuthorized: (resolve, reject, event) => {
+                        // Log the authorized payment data
+                        log('Payment authorized by user', 'success');
+                        console.log('Authorized payment data:', event.payment);
+                        resolve(event.payment);
+                    },
                     onValidateMerchant: async (resolve, reject, validationURL) => {
                         try {
                             log(`Validating merchant with URL: ${validationURL}`, 'info');
+                            console.log('Validation URL:', validationURL);
+                            
                             const response = await fetch('/api/validateApplePayMerchant', {
                                 method: 'POST',
                                 headers: {
@@ -210,11 +221,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                             
                             if (!response.ok) {
                                 const errorText = await response.text();
+                                console.error('Validation error response:', errorText);
                                 throw new Error(`Merchant validation failed: ${response.status} ${errorText}`);
                             }
                             
                             const data = await response.json();
                             log('Merchant validation successful', 'success');
+                            console.log('Validation response:', data);
                             resolve(data);
                         } catch (error) {
                             log(`Merchant validation error: ${error.message}`, 'error');
@@ -223,19 +236,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     },
                     onSubmit: async (state, component) => {
-                        if (state.isValid) {
-                            try {
-                                log('Apple Pay payment authorized, processing...', 'success');
-                                console.log('Apple Pay state data:', state.data);
-                                await handleApplePaySubmit(state.data);
-                                component.setStatus('success');
-                            } catch (error) {
-                                log(`Payment processing error: ${error.message}`, 'error');
+                        try {
+                            if (!state.isValid) {
+                                log('Invalid Apple Pay state', 'error');
+                                console.error('Invalid state:', state);
                                 component.setStatus('error');
+                                return;
                             }
-                        } else {
-                            log('Invalid Apple Pay state', 'error');
-                            console.error('Invalid state:', state);
+
+                            log('Apple Pay payment authorized, processing...', 'success');
+                            console.log('Payment state:', state);
+                            console.log('Payment data:', state.data);
+
+                            // Process the payment
+                            await handleApplePaySubmit(state.data);
+                            
+                            // Set success status
+                            component.setStatus('success');
+                            log('Payment processed successfully', 'success');
+                        } catch (error) {
+                            log(`Payment processing error: ${error.message}`, 'error');
+                            console.error('Processing error:', error);
                             component.setStatus('error');
                         }
                     },

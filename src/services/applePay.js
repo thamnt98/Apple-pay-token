@@ -202,14 +202,61 @@ class ApplePayService {
       if (!token || !token.paymentData) {
         throw new Error('Invalid Apple Pay token: missing paymentData');
       }
-      
-      // Use the Adyen instance to process the token
-      const paymentData = await this.adyenInstance.processApplePayToken(token);
-      
-      logger.info('Apple Pay token processed successfully in ApplePayService');
-      return paymentData;
+
+      // Create payment request for Adyen
+      const paymentRequest = {
+        merchantAccount: this.adyenInstance.merchantAccount,
+        amount: {
+          currency: token.currencyCode || 'USD',
+          value: Math.round(token.paymentData.amount * 100) // Convert to cents
+        },
+        reference: `apple-pay-${Date.now()}`,
+        paymentMethod: {
+          type: 'applepay',
+          applePayToken: token.paymentData
+        },
+        returnUrl: `https://${process.env.APPLE_PAY_DOMAIN || 'localhost'}/checkout-result`,
+        browserInfo: {
+          acceptHeader: '*/*',
+          userAgent: 'Mozilla/5.0'
+        }
+      };
+
+      logger.info('Sending payment request to Adyen:', JSON.stringify(paymentRequest, null, 2));
+
+      try {
+        // Get base URL based on environment
+        const environment = process.env.ADYEN_ENVIRONMENT === 'LIVE' ? 'LIVE' : 'TEST';
+        const baseUrl = environment === 'LIVE' 
+          ? 'https://checkout-live.adyen.com/v70'
+          : 'https://checkout-test.adyen.com/v70';
+
+        // Make payment request to Adyen
+        const response = await fetch(`${baseUrl}/payments`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-API-key': this.adyenInstance.client.config.apiKey
+          },
+          body: JSON.stringify(paymentRequest)
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          logger.error(`Payment failed: ${response.status} ${errorText}`);
+          throw new Error(`Payment failed: ${response.status} ${errorText}`);
+        }
+
+        const paymentResult = await response.json();
+        logger.info('Payment processed successfully:', JSON.stringify(paymentResult, null, 2));
+        
+        return paymentResult;
+      } catch (error) {
+        logger.error('Error processing payment with Adyen:', error);
+        throw error;
+      }
     } catch (error) {
-      logger.error('Error processing Apple Pay token in ApplePayService:', error);
+      logger.error('Error processing Apple Pay token:', error);
       throw error;
     }
   }
