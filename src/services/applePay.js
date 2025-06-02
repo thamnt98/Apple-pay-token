@@ -107,19 +107,17 @@ class ApplePayService {
       const domainName = process.env.APPLE_PAY_DOMAIN || 'localhost';
       const displayName = process.env.APPLE_PAY_DISPLAY_NAME || 'Adyen Apple Pay Demo';
       
-      // Make a request to Adyen's merchant validation endpoint
-      // Note: Adyen expects 'validationUrl' (lowercase 'u'), not 'validationURL'
-      const response = await fetch(`${baseUrl}/applePay/sessions`, {
+      // According to Adyen's API, we need to use a different endpoint for validation
+      // The /applePay/sessions endpoint is only for initial session creation
+      const response = await fetch(`${baseUrl}/applePay/sessions/validate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-API-key': this.adyenInstance.client.config.apiKey
         },
         body: JSON.stringify({
-          displayName: displayName,
-          domainName: domainName,
-          merchantIdentifier: merchantIdentifier,
-          validationUrl: validationURL  // Changed from validationURL to validationUrl
+          merchantAccount: this.adyenInstance.merchantAccount,
+          validationURL: validationURL
         })
       });
       
