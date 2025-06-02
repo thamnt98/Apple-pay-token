@@ -193,12 +193,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             amount: (getAmountInCents() / 100).toString()
                         },
                         requiredBillingContactFields: ['name', 'phoneNumber', 'email', 'postalAddress'],
-                        requiredShippingContactFields: [],
-                        applicationData: btoa(JSON.stringify({
-                            merchantIdentifier: merchantIdentifier,
-                            initiativeContext: window.location.hostname,
-                            initiative: 'web'
-                        }))
+                        requiredShippingContactFields: []
                     },
                     onValidateMerchant: async (resolve, reject, validationURL) => {
                         try {
@@ -229,7 +224,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             log('About to show Apple Pay sheet...', 'info');
 
                             // Ensure we have all required fields
-                            if (!data.merchantIdentifier || !data.merchantSessionIdentifier || !data.signature) {
+                            if (!data.merchantIdentifier || !data.merchantSessionIdentifier || !data.signature || !data.nonce || !data.timestamp) {
                                 throw new Error('Missing required validation data fields');
                             }
 
@@ -238,6 +233,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                         } catch (error) {
                             log(`Merchant validation error: ${error.message}`, 'error');
                             console.error('Validation error:', error);
+                            reject(error);
+                        }
+                    },
+                    onAuthorized: (resolve, reject, event) => {
+                        try {
+                            log('Payment authorized by user', 'success');
+                            console.log('Authorized payment data:', event.payment);
+                            resolve(event.payment);
+                        } catch (error) {
+                            console.error('Authorization error:', error);
                             reject(error);
                         }
                     },
@@ -265,29 +270,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                             reject(error);
                         }
                     },
-                    onPaymentAuthorized: async (resolve, reject, event) => {
-                        try {
-                            log('Payment authorized by user - processing payment...', 'success');
-                            console.log('Full payment data:', event.payment);
-                            
-                            // Process the payment
-                            log('Sending payment data to server...', 'info');
-                            const response = await handleApplePaySubmit(event.payment);
-                            
-                            if (response && response.resultCode === "Authorised") {
-                                log('Payment processed successfully', 'success');
-                                resolve(event.payment);
-                            } else {
-                                const errorMsg = response ? `Payment failed: ${response.resultCode}` : 'Payment processing failed';
-                                log(errorMsg, 'error');
-                                throw new Error(errorMsg);
-                            }
-                        } catch (error) {
-                            log(`Payment processing error: ${error.message}`, 'error');
-                            console.error('Processing error details:', error);
-                            reject(error);
-                        }
-                    },
                     onCancel: (event) => {
                         log('Apple Pay payment cancelled by user', 'info');
                         console.log('Cancel event:', event);
@@ -296,13 +278,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         log(`Apple Pay error: ${error.message || 'Unknown error'}`, 'error');
                         log(`Apple Pay error details: ${JSON.stringify(error)}`, 'error');
                         console.error('Full Apple Pay error:', error);
-                        
-                        // Check if it's a session setup error
-                        if (error.name === 'cancel' && error.cause?.isTrusted) {
-                            log('Session setup error - checking configuration...', 'error');
-                            console.log('Current configuration:', applePayComponentConfig);
-                        }
-                        
                         showStatus(`Error: ${error.message || 'Payment session could not be started'}`, 'error');
                     }
                 };
