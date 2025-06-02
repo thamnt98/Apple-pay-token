@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const logger = require('./utils/logger');
-const { setupAdyen } = require('./services/adyen');
+const adyenService = require('./services/adyen');
 const webhookService = require('./services/webhook');
 const applePayService = require('./services/applePay');
 
@@ -14,9 +14,6 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
-
-// Initialize Adyen
-const adyenInstance = setupAdyen();
 
 // Routes
 app.get('/', (req, res) => {
@@ -32,7 +29,7 @@ app.get('/.well-known/apple-developer-merchantid-domain-association', (req, res)
 app.post('/api/getPaymentMethods', async (req, res) => {
   try {
     logger.info('Getting payment methods from Adyen');
-    const response = await adyenInstance.getPaymentMethods();
+    const response = await adyenService.getPaymentMethods();
     res.json(response);
   } catch (error) {
     logger.error('Error getting payment methods:', error);

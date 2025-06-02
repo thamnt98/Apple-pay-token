@@ -33,7 +33,8 @@ class AdyenService {
     return {
       clientKey: this.clientKey,
       environment: this.environment.toLowerCase(),
-      merchantAccount: this.merchantAccount
+      merchantAccount: this.merchantAccount,
+      apiKey: this.apiKey
     };
   }
 
@@ -95,14 +96,5 @@ class AdyenService {
   }
 }
 
-// Create and export a singleton instance
-let adyenInstance;
-
-function setupAdyen() {
-  if (!adyenInstance) {
-    adyenInstance = new AdyenService();
-  }
-  return adyenInstance;
-}
-
-module.exports = { setupAdyen }; 
+// Export a singleton instance
+module.exports = new AdyenService(); 

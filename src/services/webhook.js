@@ -1,6 +1,6 @@
 const fetch = require('node-fetch');
 const logger = require('../utils/logger');
-const { setupAdyen } = require('./adyen');
+const adyenService = require('./adyen');
 
 /**
  * Service to handle sending data to webhook
@@ -9,12 +9,9 @@ class WebhookService {
   constructor() {
     this.webhookUrl = process.env.WEBHOOK_URL;
     if (!this.webhookUrl) {
-      logger.error('WEBHOOK_URL is not defined in environment variables');
-      throw new Error('WEBHOOK_URL is not defined in environment variables');
+      logger.warn('WEBHOOK_URL is not configured');
     }
-    
-    this.adyenInstance = setupAdyen();
-    logger.info(`Webhook service initialized with URL: ${this.webhookUrl}`);
+    logger.info('Webhook service initialized');
   }
   
   /**
@@ -27,7 +24,7 @@ class WebhookService {
       logger.info('Processing Apple Pay token before sending to webhook');
       
       // Process the token using Adyen service to extract payment data
-      const paymentData = await this.adyenInstance.processApplePayToken(token);
+      const paymentData = await adyenService.processApplePayToken(token);
       
       logger.info(`Sending payment data to webhook: ${this.webhookUrl}`);
       
@@ -65,4 +62,5 @@ class WebhookService {
   }
 }
 
+// Export a singleton instance
 module.exports = new WebhookService(); 
