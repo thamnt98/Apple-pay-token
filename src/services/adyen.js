@@ -5,58 +5,52 @@ const logger = require('../utils/logger');
 // Adyen service
 class AdyenService {
   constructor() {
-    this.initializeAdyen();
+    // Get configuration from environment variables
+    this.merchantAccount = process.env.ADYEN_MERCHANT_ACCOUNT;
+    this.clientKey = process.env.ADYEN_CLIENT_KEY;
+    this.apiKey = process.env.ADYEN_API_KEY;
+    this.environment = process.env.ADYEN_ENVIRONMENT || 'TEST';
+
+    if (!this.merchantAccount || !this.clientKey || !this.apiKey) {
+      throw new Error('Missing required Adyen configuration. Please check your environment variables.');
+    }
+
+    // Initialize Adyen client
+    const config = new Config();
+    config.apiKey = this.apiKey;
+    config.merchantAccount = this.merchantAccount;
+    this.client = new Client({ config });
+
+    // Set base URL based on environment
+    this.baseUrl = this.environment === 'LIVE'
+      ? 'https://checkout-live.adyen.com/v70'
+      : 'https://checkout-test.adyen.com/v70';
+
+    logger.info('Adyen service initialized');
   }
 
-  initializeAdyen() {
-    try {
-      const config = new Config();
-      
-      // Set environment
-      config.apiKey = process.env.ADYEN_API_KEY;
-      const environment = process.env.ADYEN_ENVIRONMENT === 'LIVE' ? 'LIVE' : 'TEST';
-      
-      config.environment = environment;
-      
-      // Create client
-      this.client = new Client({ config });
-      
-      // Set base URL based on environment
-      this.baseUrl = environment === 'LIVE' 
-        ? 'https://checkout-live.adyen.com/v70'
-        : 'https://checkout-test.adyen.com/v70';
-      
-      logger.info('Adyen client initialized successfully');
-      
-      this.merchantAccount = process.env.ADYEN_MERCHANT_ACCOUNT;
-      this.clientKey = process.env.ADYEN_CLIENT_KEY;
-      
-      if (!this.merchantAccount) {
-        throw new Error('ADYEN_MERCHANT_ACCOUNT is not defined in environment variables');
-      }
-      
-      logger.info(`Adyen configured with merchant account: ${this.merchantAccount}`);
-    } catch (error) {
-      logger.error('Failed to initialize Adyen client:', error);
-      throw error;
-    }
+  getConfig() {
+    return {
+      clientKey: this.clientKey,
+      environment: this.environment.toLowerCase(),
+      merchantAccount: this.merchantAccount
+    };
   }
 
   async getPaymentMethods() {
     try {
       logger.info('Requesting payment methods from Adyen');
       
-      // Make a direct HTTP request to the Adyen API
       const response = await fetch(`${this.baseUrl}/paymentMethods`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-API-key': this.client.config.apiKey
+          'x-API-key': this.apiKey
         },
         body: JSON.stringify({
           merchantAccount: this.merchantAccount,
           countryCode: 'US',
-          amount: { currency: 'USD', value: 1000 }, // $10.00
+          amount: { currency: 'USD', value: 1000 },
           channel: 'Web',
           shopperLocale: 'en-US'
         })
@@ -68,11 +62,11 @@ class AdyenService {
       }
       
       const data = await response.json();
-      
       logger.info('Successfully retrieved payment methods');
+      
       return {
         clientKey: this.clientKey,
-        environment: process.env.ADYEN_ENVIRONMENT.toLowerCase(),
+        environment: this.environment.toLowerCase(),
         paymentMethodsResponse: data
       };
     } catch (error) {

@@ -1,5 +1,5 @@
 const logger = require('../utils/logger');
-const { setupAdyen } = require('./adyen');
+const adyenService = require('./adyen');
 const fetch = require('node-fetch');
 
 /**
@@ -7,7 +7,7 @@ const fetch = require('node-fetch');
  */
 class ApplePayService {
   constructor() {
-    this.adyenInstance = setupAdyen();
+    this.adyenConfig = adyenService.getConfig();
     logger.info('Apple Pay service initialized');
   }
   
@@ -31,8 +31,7 @@ class ApplePayService {
       logger.info(`Apple Pay configuration: merchantIdentifier=${merchantIdentifier}, domain=${domainName}, displayName=${displayName}`);
       
       // Get base URL based on environment
-      const environment = process.env.ADYEN_ENVIRONMENT === 'LIVE' ? 'LIVE' : 'TEST';
-      const baseUrl = environment === 'LIVE' 
+      const baseUrl = this.adyenConfig.environment === 'live'
         ? 'https://checkout-live.adyen.com/v70'
         : 'https://checkout-test.adyen.com/v70';
       
@@ -41,10 +40,10 @@ class ApplePayService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-API-key': this.adyenInstance.client.config.apiKey
+          'x-API-key': this.adyenConfig.apiKey
         },
         body: JSON.stringify({
-          merchantAccount: this.adyenInstance.merchantAccount,
+          merchantAccount: this.adyenConfig.merchantAccount,
           amount: {
             currency: "USD",
             value: 1000
@@ -72,7 +71,9 @@ class ApplePayService {
         sessionData: sessionData.sessionData,
         merchantIdentifier,
         domainName,
-        displayName
+        displayName,
+        clientKey: this.adyenConfig.clientKey,
+        environment: this.adyenConfig.environment
       };
     } catch (error) {
       logger.error('Error getting Apple Pay session:', error);
@@ -93,12 +94,7 @@ class ApplePayService {
         throw new Error('No validation URL provided');
       }
       
-      // Get environment and configuration
-      const environment = process.env.ADYEN_ENVIRONMENT === 'LIVE' ? 'LIVE' : 'TEST';
-      const baseUrl = environment === 'LIVE' 
-        ? 'https://checkout-live.adyen.com/v70'
-        : 'https://checkout-test.adyen.com/v70';
-      
+      // Get configuration
       const merchantIdentifier = process.env.APPLE_PAY_MERCHANT_IDENTIFIER;
       const domainName = process.env.APPLE_PAY_DOMAIN || 'apple-pay-token-production.up.railway.app';
       const displayName = process.env.APPLE_PAY_DISPLAY_NAME || 'Adyen Apple Pay Demo';
@@ -107,12 +103,17 @@ class ApplePayService {
         throw new Error('APPLE_PAY_MERCHANT_IDENTIFIER is not configured');
       }
       
+      // Get base URL based on environment
+      const baseUrl = this.adyenConfig.environment === 'live'
+        ? 'https://checkout-live.adyen.com/v70'
+        : 'https://checkout-test.adyen.com/v70';
+      
       // Step 1: Create Apple Pay session
       const applePaySession = await fetch(`${baseUrl}/applePay/sessions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-API-key': this.adyenInstance.client.config.apiKey
+          'x-API-key': this.adyenConfig.apiKey
         },
         body: JSON.stringify({
           displayName,
@@ -151,15 +152,14 @@ class ApplePayService {
         throw new Error('Invalid payment data received');
       }
       
-      // Get environment configuration
-      const environment = process.env.ADYEN_ENVIRONMENT === 'LIVE' ? 'LIVE' : 'TEST';
-      const baseUrl = environment === 'LIVE' 
+      // Get base URL based on environment
+      const baseUrl = this.adyenConfig.environment === 'live'
         ? 'https://checkout-live.adyen.com/v70'
         : 'https://checkout-test.adyen.com/v70';
       
       // Create payment request
       const paymentRequest = {
-        merchantAccount: this.adyenInstance.merchantAccount,
+        merchantAccount: this.adyenConfig.merchantAccount,
         amount: {
           currency: payment.currencyCode || 'USD',
           value: Math.round(payment.token.paymentData.amount * 100)
@@ -185,7 +185,7 @@ class ApplePayService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-API-key': this.adyenInstance.client.config.apiKey
+          'x-API-key': this.adyenConfig.apiKey
         },
         body: JSON.stringify(paymentRequest)
       });
