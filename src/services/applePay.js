@@ -113,95 +113,128 @@ class ApplePayService {
 
       logger.info(`Using configuration: merchantIdentifier=${merchantIdentifier}, domain=${domainName}, displayName=${displayName}`);
       
-      // Log the request payload for debugging
-      const requestPayload = {
-        merchantAccount: this.adyenInstance.merchantAccount,
+      // Step 1: Get the session data from Adyen
+      // According to: https://docs.adyen.com/payment-methods/apple-pay/web-component#step-1-get-the-session-data
+      const sessionRequestPayload = {
         displayName: displayName,
         domainName: domainName,
-        merchantIdentifier: merchantIdentifier,
-        validationURL: validationURL
+        initiative: "web",
+        merchantIdentifier: merchantIdentifier
       };
 
-      logger.info('Sending request to Adyen:', JSON.stringify(requestPayload, null, 2));
+      logger.info('Requesting session from Adyen:', JSON.stringify(sessionRequestPayload, null, 2));
       
-      // Use the correct request structure for Adyen's Apple Pay session endpoint
-      const response = await fetch(`${baseUrl}/applePay/sessions`, {
+      const sessionResponse = await fetch(`${baseUrl}/applePay/sessions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-API-key': this.adyenInstance.client.config.apiKey
         },
-        body: JSON.stringify(requestPayload)
+        body: JSON.stringify(sessionRequestPayload)
       });
       
-      // Get the raw response text first
-      const responseText = await response.text();
-      logger.info('Raw response from Adyen:', responseText);
+      const sessionResponseText = await sessionResponse.text();
+      logger.info('Raw session response from Adyen:', sessionResponseText);
 
-      if (!response.ok) {
-        logger.error(`Failed to validate merchant: ${response.status} ${responseText}`);
-        throw new Error(`Merchant validation failed: ${response.status} ${responseText}`);
+      if (!sessionResponse.ok) {
+        logger.error(`Failed to get session: ${sessionResponse.status} ${sessionResponseText}`);
+        throw new Error(`Session request failed: ${sessionResponse.status} ${sessionResponseText}`);
       }
       
-      // Try to parse the response as JSON
-      let validationData;
+      let sessionData;
       try {
-        validationData = JSON.parse(responseText);
+        sessionData = JSON.parse(sessionResponseText);
       } catch (parseError) {
-        logger.error('Failed to parse Adyen response as JSON:', parseError);
-        logger.error('Raw response was:', responseText);
-        throw new Error('Invalid JSON response from Adyen');
+        logger.error('Failed to parse session response:', parseError);
+        throw new Error('Invalid JSON response from session request');
       }
 
-      logger.info('Merchant validation successful');
-      logger.info('Raw validation data:', JSON.stringify(validationData, null, 2));
+      logger.info('Session data received:', JSON.stringify(sessionData, null, 2));
 
-      // Extract data field if it exists
-      let data = validationData;
-      if (validationData.data) {
-        try {
-          data = typeof validationData.data === 'string' ? JSON.parse(validationData.data) : validationData.data;
-        } catch (parseError) {
-          logger.error('Failed to parse data field:', parseError);
-          data = validationData;
-        }
-      }
-      
-      // Construct the proper validation response format
-      const validationResponse = {
-        merchantIdentifier: data.merchantIdentifier || merchantIdentifier,
-        domainName: data.domainName || domainName,
-        displayName: data.displayName || displayName,
-        merchantSessionIdentifier: data.merchantSessionIdentifier || validationData.merchantSessionIdentifier,
-        signature: data.signature || validationData.signature,
-        nonce: data.nonce || validationData.nonce,
-        timestamp: data.timestamp || validationData.timestamp || Math.floor(Date.now() / 1000).toString(),
-        epochTimestamp: data.epochTimestamp || validationData.epochTimestamp || Math.floor(Date.now() / 1000).toString(),
-        expiresAt: data.expiresAt || validationData.expiresAt || (Math.floor(Date.now() / 1000) + 3600).toString()
+      // Step 2: Validate with Apple Pay
+      // According to: https://developer.apple.com/documentation/apple_pay_on_the_web/apple_pay_js_api/requesting_an_apple_pay_payment_session
+      const validationRequestPayload = {
+        merchantIdentifier: merchantIdentifier,
+        displayName: displayName,
+        initiative: "web",
+        initiativeContext: domainName
       };
 
-      // Verify all required fields are present
+      if (sessionData.data) {
+        try {
+          // If session data is provided as a string, parse it
+          const parsedData = typeof sessionData.data === 'string' 
+            ? JSON.parse(sessionData.data) 
+            : sessionData.data;
+          
+          // Merge the session data with our validation request
+          Object.assign(validationRequestPayload, parsedData);
+        } catch (parseError) {
+          logger.error('Failed to parse session data:', parseError);
+          // Continue with basic validation data
+        }
+      }
+
+      logger.info('Sending validation request to Apple:', JSON.stringify(validationRequestPayload, null, 2));
+
+      const validationResponse = await fetch(validationURL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(validationRequestPayload)
+      });
+
+      const validationResponseText = await validationResponse.text();
+      logger.info('Raw validation response from Apple:', validationResponseText);
+
+      if (!validationResponse.ok) {
+        logger.error(`Apple validation failed: ${validationResponse.status} ${validationResponseText}`);
+        throw new Error(`Apple validation failed: ${validationResponse.status} ${validationResponseText}`);
+      }
+
+      let validationData;
+      try {
+        validationData = JSON.parse(validationResponseText);
+      } catch (parseError) {
+        logger.error('Failed to parse validation response:', parseError);
+        throw new Error('Invalid JSON response from Apple validation');
+      }
+
+      // Step 3: Return the validation data in the format expected by Apple Pay JS
+      // According to: https://developer.apple.com/documentation/apple_pay_on_the_web/applepayvalidatemerchantresponse
+      const response = {
+        merchantIdentifier: validationData.merchantIdentifier || merchantIdentifier,
+        merchantSessionIdentifier: validationData.merchantSessionIdentifier,
+        nonce: validationData.nonce,
+        domainName: validationData.domainName || domainName,
+        displayName: validationData.displayName || displayName,
+        signature: validationData.signature,
+        operationalAnalyticsIdentifier: validationData.operationalAnalyticsIdentifier,
+        retries: validationData.retries || 0,
+        epochTimestamp: validationData.epochTimestamp || Math.floor(Date.now() / 1000).toString(),
+        expiresAt: validationData.expiresAt || (Math.floor(Date.now() / 1000) + 3600).toString()
+      };
+
+      // Verify required fields according to Apple Pay documentation
       const requiredFields = [
         'merchantIdentifier',
         'merchantSessionIdentifier',
-        'signature',
         'nonce',
-        'timestamp',
-        'epochTimestamp',
-        'expiresAt'
+        'signature'
       ];
 
-      const missingFields = requiredFields.filter(field => !validationResponse[field]);
+      const missingFields = requiredFields.filter(field => !response[field]);
       if (missingFields.length > 0) {
-        logger.error('Missing required fields in validation response:', missingFields);
-        logger.error('Full validation response:', validationResponse);
-        throw new Error(`Missing required validation fields: ${missingFields.join(', ')}`);
+        logger.error('Missing required fields:', missingFields);
+        logger.error('Validation response:', response);
+        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
       }
 
-      logger.info('Processed validation response:', JSON.stringify(validationResponse, null, 2));
-      return validationResponse;
+      logger.info('Final validation response:', JSON.stringify(response, null, 2));
+      return response;
     } catch (error) {
-      logger.error('Error validating merchant:', error);
+      logger.error('Error in merchant validation:', error);
       throw error;
     }
   }
