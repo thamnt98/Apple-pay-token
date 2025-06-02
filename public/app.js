@@ -260,6 +260,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     },
                     onError: (error) => {
                         log(`Apple Pay error: ${error.message}`, 'error');
+                        log(`Apple Pay error: ${error}`, 'error');
                         console.error('Apple Pay error details:', error);
                         showStatus(`Error: ${error.message}`, 'error');
                     }
