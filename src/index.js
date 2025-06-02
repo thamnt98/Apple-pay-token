@@ -13,8 +13,7 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, '../public')));
+app.use(express.static('public'));
 
 // Initialize Adyen
 const adyenInstance = setupAdyen();
@@ -22,6 +21,11 @@ const adyenInstance = setupAdyen();
 // Routes
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+// Serve the Apple Pay merchant validation file
+app.get('/.well-known/apple-developer-merchantid-domain-association', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/.well-known/apple-developer-merchantid-domain-association'));
 });
 
 // API endpoints
@@ -36,17 +40,19 @@ app.post('/api/getPaymentMethods', async (req, res) => {
   }
 });
 
-app.post('/api/getApplePaySession', async (req, res) => {
+// Get Adyen session
+app.post('/api/getSession', async (req, res) => {
   try {
-    logger.info('Getting Apple Pay session');
+    logger.info('Getting Adyen session');
     const session = await applePayService.getSession();
     res.json(session);
   } catch (error) {
-    logger.error('Error getting Apple Pay session:', error);
+    logger.error('Error getting session:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
+// Validate Apple Pay merchant
 app.post('/api/validateApplePayMerchant', async (req, res) => {
   try {
     const { validationURL } = req.body;
@@ -56,36 +62,30 @@ app.post('/api/validateApplePayMerchant', async (req, res) => {
       return res.status(400).json({ error: 'No validation URL provided' });
     }
     
-    logger.info(`Validating Apple Pay merchant with URL: ${validationURL}`);
+    logger.info('Validating Apple Pay merchant');
     const validationData = await applePayService.validateMerchant(validationURL);
-    
     res.json(validationData);
   } catch (error) {
-    logger.error('Error validating Apple Pay merchant:', error);
+    logger.error('Error validating merchant:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-app.post('/api/submitApplePayToken', async (req, res) => {
+// Process Apple Pay payment
+app.post('/api/processApplePayment', async (req, res) => {
   try {
-    const { token } = req.body;
+    const payment = req.body;
     
-    if (!token) {
-      logger.error('No Apple Pay token provided');
-      return res.status(400).json({ error: 'No Apple Pay token provided' });
+    if (!payment || !payment.token) {
+      logger.error('Invalid payment data received');
+      return res.status(400).json({ error: 'Invalid payment data' });
     }
     
-    logger.info('Received Apple Pay token, processing...');
-    
-    // Process the token with the Apple Pay service
-    const processedData = await applePayService.processToken(token);
-    
-    // Send the payment data to webhook
-    const result = await webhookService.sendToWebhook(processedData);
-    
-    res.json({ success: true, result });
+    logger.info('Processing Apple Pay payment');
+    const result = await applePayService.processPayment(payment);
+    res.json(result);
   } catch (error) {
-    logger.error('Error processing Apple Pay token:', error);
+    logger.error('Error processing payment:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -10,7 +10,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     let config = {
         clientKey: '',
         environment: '',
-        paymentMethodsResponse: null
+        paymentMethodsResponse: null,
+        sessionId: null,
+        sessionData: null
     };
     
     // Logger function
@@ -20,7 +22,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
         logContainer.appendChild(logEntry);
         logContainer.scrollTop = logContainer.scrollHeight;
-        
         console.log(`[${type}] ${message}`);
     }
     
@@ -30,13 +31,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         paymentStatus.className = `payment-status ${type}`;
     }
     
-    // Initialize Adyen and get payment methods
+    // Initialize Adyen and get session data
     async function initializeAdyen() {
         try {
             log('Initializing Adyen...');
             showStatus('Initializing payment system...', 'info');
             
-            const response = await fetch('/api/getPaymentMethods', {
+            // Get session data from server
+            const response = await fetch('/api/getSession', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -45,16 +47,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             if (!response.ok) {
                 const errorText = await response.text();
-                throw new Error(`Failed to get payment methods: ${response.status} ${errorText}`);
+                throw new Error(`Failed to get session: ${response.status} ${errorText}`);
             }
             
             const data = await response.json();
-            config = data;
+            config = {
+                clientKey: data.clientKey,
+                environment: data.environment,
+                sessionId: data.id,
+                sessionData: data.sessionData
+            };
             
-            log('Adyen initialized successfully', 'success');
+            log('Session data received successfully', 'success');
             showStatus('Payment system ready', 'success');
             
-            // Check if Apple Pay is available
+            // Initialize Apple Pay
             initializeApplePay();
         } catch (error) {
             log(`Error initializing Adyen: ${error.message}`, 'error');
@@ -65,295 +72,120 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize Apple Pay
     async function initializeApplePay() {
         try {
-            // Check if Apple Pay is available in the payment methods
-            log('Checking for Apple Pay in payment methods...', 'info');
-            console.log('Payment methods response:', config.paymentMethodsResponse);
-            
-            const applePayMethod = config.paymentMethodsResponse.paymentMethods?.find(
-                method => method.type === 'applepay'
-            );
-            
-            if (!applePayMethod) {
-                log('Apple Pay is not available in the payment methods', 'info');
+            // Check if Apple Pay is available
+            if (!window.ApplePaySession || !ApplePaySession.canMakePayments()) {
+                log('Apple Pay is not available on this device', 'info');
                 applePayButton.style.display = 'none';
                 return;
             }
             
-            log('Found Apple Pay method:', 'info');
-            console.log('Apple Pay method details:', applePayMethod);
-            
-            // Check if the device supports Apple Pay
-            log('Checking if device supports Apple Pay...', 'info');
-            if (!window.ApplePaySession) {
-                log('ApplePaySession is not available on this device', 'info');
-                applePayButton.style.display = 'none';
-                return;
-            }
-            
-            // Check if the browser supports Apple Pay
-            if (!ApplePaySession.canMakePayments()) {
-                log('This device cannot make Apple Pay payments', 'info');
-                applePayButton.style.display = 'none';
-                return;
-            }
-            
-            log('Apple Pay is available', 'success');
-            
-            // Get Apple Pay session data from server
-            log('Fetching Apple Pay session data...', 'info');
-            let applePayConfig = {};
-            try {
-                const sessionResponse = await fetch('/api/getApplePaySession', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (!sessionResponse.ok) {
-                    const errorText = await sessionResponse.text();
-                    throw new Error(`Failed to get Apple Pay session: ${sessionResponse.status} ${errorText}`);
-                }
-                
-                applePayConfig = await sessionResponse.json();
-                log('Apple Pay session data received', 'success');
-                console.log('Apple Pay session data:', applePayConfig);
-            } catch (sessionError) {
-                log(`Error fetching Apple Pay session: ${sessionError.message}`, 'error');
-                console.error('Session error details:', sessionError);
-                // Continue with default configuration from Adyen
-            }
-            
-            // Make sure AdyenCheckout is available
-            log('Checking if AdyenCheckout is available...', 'info');
-            if (typeof AdyenCheckout !== 'function') {
-                throw new Error('AdyenCheckout is not loaded properly');
-            }
-            
-            // Initialize Adyen Web with proper async handling
-            try {
-                log('Creating AdyenCheckout instance...', 'info');
-                console.log('Checkout configuration:', {
-                    clientKey: config.clientKey,
-                    environment: config.environment,
-                    paymentMethodsResponse: config.paymentMethodsResponse
-                });
-                
-                // Create the AdyenCheckout instance
-                const checkout = await AdyenCheckout({
-                    clientKey: config.clientKey,
-                    environment: config.environment,
-                    paymentMethodsResponse: config.paymentMethodsResponse,
-                    onError: (error) => {
-                        log(`Adyen error: ${error.message}`, 'error');
-                        console.error('Adyen error details:', error);
-                        showStatus(`Error: ${error.message}`, 'error');
-                    }
-                });
-                
-                log('AdyenCheckout created successfully', 'success');
-                
-                // Create Apple Pay component
-                log('Creating Apple Pay component...', 'info');
-                
-                // Use the merchant identifier from the server or fallback to the one from Adyen
-                const merchantIdentifier = applePayConfig.merchantIdentifier || 
-                                          applePayMethod.configuration?.merchantIdentifier;
-                
-                if (!merchantIdentifier) {
-                    throw new Error('No merchant identifier available for Apple Pay');
-                }
-                
-                log(`Using merchant identifier: ${merchantIdentifier}`, 'info');
-                
-                // Merge configuration from server with default values
-                const applePayComponentConfig = {
-                    amount: {
-                        currency: 'USD',
-                        value: getAmountInCents()
-                    },
-                    countryCode: 'US',
-                    configuration: {
-                        merchantName: applePayConfig.displayName || 'Adyen Apple Pay Demo',
-                        merchantIdentifier: merchantIdentifier
-                    },
-                    paymentRequest: {
-                        version: 3,
-                        countryCode: 'US',
-                        currencyCode: 'USD',
-                        merchantCapabilities: [
-                            'supports3DS',
-                            'supportsCredit',
-                            'supportsDebit'
-                        ],
-                        supportedNetworks: ['visa', 'masterCard', 'amex'],
-                        total: {
-                            label: applePayConfig.displayName || 'Adyen Apple Pay Demo',
-                            type: 'final',
-                            amount: (getAmountInCents() / 100).toString()
-                        },
-                        requiredBillingContactFields: ['name', 'phoneNumber', 'email', 'postalAddress'],
-                        requiredShippingContactFields: []
-                    },
-                    onValidateMerchant: async (resolve, reject, validationURL) => {
-                        try {
-                            log(`Starting merchant validation...`, 'info');
-                            console.log('Validation URL:', validationURL);
-                            console.log('Current hostname:', window.location.hostname);
-                            
-                            const response = await fetch('/api/validateApplePayMerchant', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({ 
-                                    validationURL,
-                                    domain: window.location.hostname
-                                })
-                            });
-                            
-                            if (!response.ok) {
-                                const errorText = await response.text();
-                                console.error('Validation error response:', errorText);
-                                throw new Error(`Merchant validation failed: ${response.status} ${errorText}`);
-                            }
-                            
-                            const data = await response.json();
-                            log('Merchant validation successful', 'success');
-                            console.log('Validation response:', data);
-                            log('About to show Apple Pay sheet...', 'info');
-
-                            // Ensure we have all required fields
-                            // if (!data.merchantIdentifier || !data.merchantSessionIdentifier || !data.signature || !data.nonce || !data.timestamp) {
-                            //     throw new Error('Missing required validation data fields');
-                            // }
-
-                            resolve(data);
-                            log('Apple Pay sheet should appear now', 'info');
-                        } catch (error) {
-                            log(`Merchant validation error: ${error.message}`, 'error');
-                            console.error('Validation error:', error);
-                            reject(error);
-                        }
-                    },
-                    onAuthorized: (resolve, reject, event) => {
-                        try {
-                            log('Payment authorized by user', 'success');
-                            console.log('Authorized payment data:', event.payment);
-                            resolve(event.payment);
-                        } catch (error) {
-                            console.error('Authorization error:', error);
-                            reject(error);
-                        }
-                    },
-                    onPaymentMethodSelected: (resolve, reject, event) => {
-                        log('Payment method selected by user', 'info');
-                        console.log('Payment method event:', event);
-                        try {
-                            const total = {
-                                label: applePayConfig.displayName || 'Adyen Apple Pay Demo',
-                                type: 'final',
-                                amount: (getAmountInCents() / 100).toString()
-                            };
-                            log(`Updating total amount: ${total.amount}`, 'info');
-                            resolve({
-                                newTotal: total,
-                                newLineItems: [{
-                                    label: 'Subtotal',
-                                    amount: total.amount,
-                                    type: 'final'
-                                }]
-                            });
-                        } catch (error) {
-                            log(`Error in payment method selection: ${error.message}`, 'error');
-                            console.error('Payment method selection error:', error);
-                            reject(error);
-                        }
-                    },
-                    onCancel: (event) => {
-                        log('Apple Pay payment cancelled by user', 'info');
-                        console.log('Cancel event:', event);
-                    },
-                    onError: (error) => {
-                        log(`Apple Pay error: ${error.message || 'Unknown error'}`, 'error');
-                        log(`Apple Pay error details: ${JSON.stringify(error)}`, 'error');
-                        console.error('Full Apple Pay error:', error);
-                        showStatus(`Error: ${error.message || 'Payment session could not be started'}`, 'error');
-                    }
-                };
-                
-                console.log('Apple Pay component configuration:', applePayComponentConfig);
-                
-                const applePayComponent = checkout.create('applepay', applePayComponentConfig);
-                
-                // Mount Apple Pay button
-                log('Mounting Apple Pay component...', 'info');
-                applePayComponent.mount(applePayButton);
-                
-                // Update amount when input changes
-                amountInput.addEventListener('change', () => {
-                    const newAmount = getAmountInCents();
-                    applePayComponent.update({
-                        amount: {
-                            currency: 'USD',
-                            value: newAmount
-                        },
-                        paymentRequest: {
-                            total: {
-                                label: applePayConfig.displayName || 'Adyen Apple Pay Demo',
-                                type: 'final',
-                                amount: (newAmount / 100).toString()
-                            }
-                        }
-                    });
-                });
-                
-                log('Apple Pay initialized successfully', 'success');
-            } catch (checkoutError) {
-                log(`Error creating AdyenCheckout: ${checkoutError.message}`, 'error');
-                console.error('Checkout error details:', checkoutError);
-                throw checkoutError;
-            }
-        } catch (error) {
-            log(`Error initializing Apple Pay: ${error.message}`, 'error');
-            console.error('Apple Pay initialization error:', error);
-            showStatus(`Error: ${error.message}`, 'error');
-        }
-    }
-    
-    // Handle Apple Pay submission
-    async function handleApplePaySubmit(data) {
-        try {
-            log('Apple Pay payment authorized, processing token...', 'info');
-            showStatus('Processing payment...', 'info');
-            
-            const response = await fetch('/api/submitApplePayToken', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
+            // Create Adyen Checkout instance
+            const checkout = await AdyenCheckout({
+                clientKey: config.clientKey,
+                environment: config.environment,
+                session: {
+                    id: config.sessionId,
+                    sessionData: config.sessionData
                 },
-                body: JSON.stringify({
-                    token: data
-                })
+                onPaymentCompleted: (result) => {
+                    log('Payment completed:', 'success');
+                    showStatus('Payment successful!', 'success');
+                },
+                onError: (error) => {
+                    log(`Error: ${error.message}`, 'error');
+                    showStatus(`Error: ${error.message}`, 'error');
+                }
             });
             
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Failed to process payment: ${response.status} ${errorText}`);
-            }
+            // Create Apple Pay component
+            const applePayComponent = checkout.create('applepay', {
+                amount: {
+                    currency: 'USD',
+                    value: getAmountInCents()
+                },
+                countryCode: 'US',
+                configuration: {
+                    merchantName: 'Adyen Apple Pay Demo',
+                    merchantIdentifier: config.merchantIdentifier
+                },
+                onClick: (resolve, reject) => {
+                    log('Apple Pay button clicked', 'info');
+                    resolve();
+                },
+                onValidateMerchant: async (resolve, reject, validationURL) => {
+                    try {
+                        log('Validating merchant...', 'info');
+                        
+                        const response = await fetch('/api/validateApplePayMerchant', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ validationURL })
+                        });
+                        
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            throw new Error(`Merchant validation failed: ${response.status} ${errorText}`);
+                        }
+                        
+                        const validationData = await response.json();
+                        log('Merchant validation successful', 'success');
+                        resolve(validationData);
+                    } catch (error) {
+                        log(`Merchant validation error: ${error.message}`, 'error');
+                        reject(error);
+                    }
+                },
+                onAuthorized: async (resolve, reject, event) => {
+                    try {
+                        log('Payment authorized by user', 'success');
+                        
+                        const response = await fetch('/api/processApplePayment', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(event.payment)
+                        });
+                        
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            throw new Error(`Payment processing failed: ${response.status} ${errorText}`);
+                        }
+                        
+                        const result = await response.json();
+                        log('Payment processed successfully', 'success');
+                        resolve(result);
+                    } catch (error) {
+                        log(`Payment processing error: ${error.message}`, 'error');
+                        reject(error);
+                    }
+                },
+                onCancel: () => {
+                    log('Payment cancelled by user', 'info');
+                    showStatus('Payment cancelled', 'info');
+                }
+            });
             
-            const result = await response.json();
+            // Mount Apple Pay button
+            applePayComponent.mount(applePayButton);
             
-            log('Payment data sent to webhook successfully', 'success');
-            showStatus('Payment data sent successfully!', 'success');
+            // Update amount when input changes
+            amountInput.addEventListener('change', () => {
+                const newAmount = getAmountInCents();
+                applePayComponent.update({
+                    amount: {
+                        currency: 'USD',
+                        value: newAmount
+                    }
+                });
+            });
             
-            // Log the webhook response
-            log(`Webhook response: ${JSON.stringify(result)}`, 'info');
-            return result;
+            log('Apple Pay initialized successfully', 'success');
         } catch (error) {
-            log(`Error processing payment: ${error.message}`, 'error');
+            log(`Error initializing Apple Pay: ${error.message}`, 'error');
             showStatus(`Error: ${error.message}`, 'error');
-            throw error;
         }
     }
     
