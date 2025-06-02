@@ -47,6 +47,25 @@ app.post('/api/getApplePaySession', async (req, res) => {
   }
 });
 
+app.post('/api/validateApplePayMerchant', async (req, res) => {
+  try {
+    const { validationURL } = req.body;
+    
+    if (!validationURL) {
+      logger.error('No validation URL provided');
+      return res.status(400).json({ error: 'No validation URL provided' });
+    }
+    
+    logger.info(`Validating Apple Pay merchant with URL: ${validationURL}`);
+    const validationData = await applePayService.validateMerchant(validationURL);
+    
+    res.json(validationData);
+  } catch (error) {
+    logger.error('Error validating Apple Pay merchant:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/submitApplePayToken', async (req, res) => {
   try {
     const { token } = req.body;

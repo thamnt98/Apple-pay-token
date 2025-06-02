@@ -90,6 +90,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             
+            // Check if the browser supports Apple Pay
             if (!ApplePaySession.canMakePayments()) {
                 log('This device cannot make Apple Pay payments', 'info');
                 applePayButton.style.display = 'none';
@@ -155,6 +156,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Create Apple Pay component
                 log('Creating Apple Pay component...', 'info');
                 
+                // Use the merchant identifier from the server or fallback to the one from Adyen
+                const merchantIdentifier = applePayConfig.merchantIdentifier || 
+                                          applePayMethod.configuration?.merchantIdentifier;
+                
+                if (!merchantIdentifier) {
+                    throw new Error('No merchant identifier available for Apple Pay');
+                }
+                
+                log(`Using merchant identifier: ${merchantIdentifier}`, 'info');
+                
                 // Merge configuration from server with default values
                 const applePayComponentConfig = {
                     amount: {
@@ -164,10 +175,42 @@ document.addEventListener('DOMContentLoaded', async () => {
                     countryCode: 'US',
                     configuration: {
                         merchantName: applePayConfig.displayName || 'Adyen Apple Pay Demo',
-                        merchantIdentifier: applePayConfig.merchantIdentifier || applePayMethod.configuration?.merchantIdentifier
+                        merchantIdentifier: merchantIdentifier
+                    },
+                    // Add session data if available from Adyen API
+                    ...(applePayConfig.sessionData && { sessionData: applePayConfig.sessionData }),
+                    onValidateMerchant: (resolve, reject, validationURL) => {
+                        log(`Validating merchant with URL: ${validationURL}`, 'info');
+                        // Call our backend to validate the merchant
+                        fetch('/api/validateApplePayMerchant', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ validationURL })
+                        })
+                        .then(response => {
+                            if (!response.ok) {
+                                return response.text().then(text => {
+                                    throw new Error(`Merchant validation failed: ${response.status} ${text}`);
+                                });
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            log('Merchant validation successful', 'success');
+                            resolve(data);
+                        })
+                        .catch(error => {
+                            log(`Merchant validation error: ${error.message}`, 'error');
+                            console.error('Validation error:', error);
+                            reject(error);
+                        });
                     },
                     onSubmit: (state, component) => {
                         if (state.isValid) {
+                            log('Apple Pay payment authorized, processing...', 'success');
+                            console.log('Apple Pay state data:', state.data);
                             handleApplePaySubmit(state.data);
                         } else {
                             log('Invalid Apple Pay state', 'error');
