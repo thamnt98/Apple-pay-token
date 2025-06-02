@@ -113,64 +113,66 @@ class ApplePayService {
 
       logger.info(`Using configuration: merchantIdentifier=${merchantIdentifier}, domain=${domainName}, displayName=${displayName}`);
       
-      // Use the correct request structure for Adyen's Apple Pay session endpoint
-      const requestBody = {
+      // Step 1: Get session data from Adyen
+      const sessionRequestBody = {
         displayName: displayName,
         domainName: domainName,
         merchantIdentifier: merchantIdentifier,
-        initiative: "web",
-        validationURL: validationURL
+        initiative: "web"
       };
 
-      logger.info('Sending validation request to Adyen:', JSON.stringify(requestBody, null, 2));
+      logger.info('Sending session request to Adyen:', JSON.stringify(sessionRequestBody, null, 2));
       
-      const response = await fetch(`${baseUrl}/applePay/sessions`, {
+      const sessionResponse = await fetch(`${baseUrl}/applePay/sessions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-API-key': this.adyenInstance.client.config.apiKey
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(sessionRequestBody)
       });
       
-      const responseText = await response.text();
-      logger.info('Raw response from Adyen:', responseText);
+      const sessionResponseText = await sessionResponse.text();
+      logger.info('Raw session response from Adyen:', sessionResponseText);
 
-      if (!response.ok) {
-        logger.error(`Failed to validate merchant: ${response.status} ${responseText}`);
-        throw new Error(`Merchant validation failed: ${response.status} ${responseText}`);
+      if (!sessionResponse.ok) {
+        logger.error(`Failed to create session: ${sessionResponse.status} ${sessionResponseText}`);
+        throw new Error(`Session creation failed: ${sessionResponse.status} ${sessionResponseText}`);
       }
       
-      let validationData;
+      let sessionData;
       try {
-        validationData = JSON.parse(responseText);
+        sessionData = JSON.parse(sessionResponseText);
       } catch (e) {
-        logger.error('Failed to parse validation response:', e);
-        throw new Error('Invalid validation response format');
+        logger.error('Failed to parse session response:', e);
+        throw new Error('Invalid session response format');
       }
 
-      logger.info('Parsed validation data:', JSON.stringify(validationData, null, 2));
+      logger.info('Parsed session data:', JSON.stringify(sessionData, null, 2));
 
-      // Ensure all required fields are present
-      const requiredFields = ['merchantIdentifier', 'merchantSessionIdentifier', 'signature', 'nonce', 'timestamp'];
-      const missingFields = requiredFields.filter(field => !validationData[field]);
-      
-      if (missingFields.length > 0) {
-        logger.error('Missing required fields in validation data:', missingFields);
-        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+      // Step 2: Validate with Apple Pay
+      const validationRequestBody = {
+        merchantIdentifier: merchantIdentifier,
+        domainName: domainName,
+        displayName: displayName,
+        initiative: "web",
+        initiativeContext: domainName
+      };
+
+      if (sessionData.sessionData) {
+        validationRequestBody.sessionData = sessionData.sessionData;
       }
+
+      logger.info('Validation data to return:', JSON.stringify(validationRequestBody, null, 2));
 
       // Format the response exactly as Apple Pay expects it
       const formattedResponse = {
-        merchantIdentifier: validationData.merchantIdentifier,
+        merchantIdentifier: merchantIdentifier,
         domainName: domainName,
         displayName: displayName,
-        merchantSessionIdentifier: validationData.merchantSessionIdentifier,
-        signature: validationData.signature,
-        nonce: validationData.nonce,
-        timestamp: validationData.timestamp,
-        epochTimestamp: validationData.epochTimestamp || Math.floor(Date.now() / 1000).toString(),
-        expiresAt: validationData.expiresAt || (Math.floor(Date.now() / 1000) + 3600).toString()
+        initiative: "web",
+        initiativeContext: domainName,
+        ...sessionData
       };
 
       logger.info('Formatted validation response:', JSON.stringify(formattedResponse, null, 2));
