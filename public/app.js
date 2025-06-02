@@ -178,54 +178,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                         merchantIdentifier: merchantIdentifier
                     },
                     paymentRequest: {
-                        version: 3, // Specify Apple Pay API version
-                        currencyCode: 'USD',
+                        version: 3,
                         countryCode: 'US',
-                        total: {
-                            label: applePayConfig.displayName || 'Adyen Apple Pay Demo',
-                            amount: getAmountInCents() / 100,
-                            type: 'final'
-                        },
-                        lineItems: [
-                            {
-                                label: 'Total',
-                                amount: getAmountInCents() / 100,
-                                type: 'final'
-                            }
-                        ],
+                        currencyCode: 'USD',
                         merchantCapabilities: [
-                            'supports3DS',
-                            'supportsCredit',
-                            'supportsDebit'
+                            'supports3DS'
                         ],
                         supportedNetworks: ['visa', 'masterCard', 'amex'],
-                        requiredBillingContactFields: ['name', 'phone', 'email', 'postalAddress'],
-                        requiredShippingContactFields: [],
-                        shippingType: 'delivery'
-                    },
-                    onClick: (resolve, reject) => {
-                        try {
-                            log('Apple Pay button clicked', 'info');
-                            // Verify amount is valid
-                            const amount = getAmountInCents();
-                            if (amount <= 0) {
-                                reject(new Error('Invalid amount'));
-                                return;
-                            }
-                            resolve();
-                        } catch (error) {
-                            reject(error);
-                        }
-                    },
-                    onAuthorized: (resolve, reject, event) => {
-                        try {
-                            log('Payment authorized by user', 'success');
-                            console.log('Authorized payment data:', event.payment);
-                            resolve(event.payment);
-                        } catch (error) {
-                            console.error('Authorization error:', error);
-                            reject(error);
-                        }
+                        total: {
+                            label: applePayConfig.displayName || 'Adyen Apple Pay Demo',
+                            type: 'final',
+                            amount: (getAmountInCents() / 100).toString()
+                        },
+                        requiredBillingContactFields: ['name', 'phoneNumber', 'email', 'postalAddress'],
+                        requiredShippingContactFields: []
                     },
                     onValidateMerchant: async (resolve, reject, validationURL) => {
                         try {
@@ -259,35 +225,35 @@ document.addEventListener('DOMContentLoaded', async () => {
                             reject(error);
                         }
                     },
-                    onSubmit: async (state, component) => {
+                    onPaymentAuthorized: async (resolve, reject, event) => {
                         try {
-                            if (!state.isValid) {
-                                log('Invalid Apple Pay state', 'error');
-                                console.error('Invalid state:', state);
-                                component.setStatus('error');
-                                return;
-                            }
-
-                            log('Apple Pay payment authorized, processing...', 'success');
-                            console.log('Payment state:', state);
-                            console.log('Payment data:', state.data);
-
-                            // Process the payment
-                            const response = await handleApplePaySubmit(state.data);
+                            log('Payment authorized by user', 'success');
+                            console.log('Payment data:', event.payment);
                             
-                            if (response.resultCode === "Authorised") {
-                                // Set success status
-                                component.setStatus('success');
+                            // Process the payment
+                            const response = await handleApplePaySubmit(event.payment);
+                            
+                            if (response && response.resultCode === "Authorised") {
                                 log('Payment processed successfully', 'success');
+                                resolve(event.payment);
                             } else {
-                                throw new Error(`Payment failed: ${response.resultCode}`);
+                                throw new Error('Payment processing failed');
                             }
                         } catch (error) {
                             log(`Payment processing error: ${error.message}`, 'error');
                             console.error('Processing error:', error);
-                            component.setStatus('error');
-                            throw error;
+                            reject(error);
                         }
+                    },
+                    onPaymentMethodSelected: (resolve, reject, event) => {
+                        log('Payment method selected', 'info');
+                        resolve({
+                            newTotal: {
+                                label: applePayConfig.displayName || 'Adyen Apple Pay Demo',
+                                type: 'final',
+                                amount: (getAmountInCents() / 100).toString()
+                            }
+                        });
                     },
                     onCancel: () => {
                         log('Apple Pay payment cancelled by user', 'info');
@@ -309,10 +275,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 // Update amount when input changes
                 amountInput.addEventListener('change', () => {
+                    const newAmount = getAmountInCents();
                     applePayComponent.update({
                         amount: {
                             currency: 'USD',
-                            value: getAmountInCents()
+                            value: newAmount
+                        },
+                        paymentRequest: {
+                            total: {
+                                label: applePayConfig.displayName || 'Adyen Apple Pay Demo',
+                                type: 'final',
+                                amount: (newAmount / 100).toString()
+                            }
                         }
                     });
                 });
