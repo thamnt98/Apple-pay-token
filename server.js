@@ -66,13 +66,24 @@ app.get('/api/config', (req, res) => {
 app.post('/api/initiate-apple-pay', async (req, res) => {
   try {
     console.log('Initiating Apple Pay session with config:', {
-      displayName: process.env.MERCHANT_NAME,
+      displayName: process.env.MERCHANT_NAME || 'Adyen Test Merchant',
       domainName: process.env.DOMAIN_NAME,
       merchantIdentifier: process.env.APPLE_PAY_MERCHANT_ID
     });
 
+    // For local development, return a mock validation
+    if (process.env.DOMAIN_NAME.includes('localhost')) {
+      console.log('Local development detected, returning mock validation');
+      res.json({
+        epochTimestamp: Date.now(),
+        expiresAt: Date.now() + 3600000, // 1 hour from now
+        merchantSessionIdentifier: "merchant_session_" + Date.now()
+      });
+      return;
+    }
+
     const response = await checkout.applePaySessions({
-      displayName: process.env.MERCHANT_NAME,
+      displayName: process.env.MERCHANT_NAME || 'Adyen Test Merchant',
       domainName: process.env.DOMAIN_NAME,
       merchantIdentifier: process.env.APPLE_PAY_MERCHANT_ID
     });

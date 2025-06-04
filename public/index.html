@@ -93,6 +93,10 @@
                             merchantName: config.merchantName,
                             countryCode: 'US',
                             totalPriceLabel: 'Total',
+                            configuration: {
+                                merchantName: config.merchantName,
+                                merchantIdentifier: config.merchantIdentifier
+                            },
                             lineItems: [{
                                 label: 'Item Total',
                                 amount: 1000,
@@ -102,29 +106,32 @@
                                 currency: 'USD',
                                 value: 1000
                             },
-                            supportedNetworks: ['visa', 'mastercard', 'amex', 'discover'],
-                            merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit'],
+                            supportedNetworks: ['visa', 'mastercard', 'amex'],
+                            merchantCapabilities: ['supports3DS'],
                             buttonType: 'plain',
-                            buttonColor: 'black'
+                            buttonColor: 'black',
+                            onClick: (resolve, reject) => {
+                                console.log('Apple Pay button clicked');
+                                // Validate the session before proceeding
+                                fetch('/api/initiate-apple-pay', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    }
+                                })
+                                .then(response => response.json())
+                                .then(data => {
+                                    console.log('Session validation successful:', data);
+                                    resolve();
+                                })
+                                .catch(error => {
+                                    console.error('Session validation failed:', error);
+                                    reject(error);
+                                });
+                            }
                         }
                     }
                 });
-
-                console.log('Validating Apple Pay session...');
-                const sessionResponse = await fetch('/api/initiate-apple-pay', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (!sessionResponse.ok) {
-                    const errorData = await sessionResponse.json();
-                    throw new Error(`Session validation failed: ${errorData.error || 'Unknown error'}`);
-                }
-                
-                const sessionData = await sessionResponse.json();
-                console.log('Session validation successful:', sessionData);
 
                 console.log('Creating Apple Pay component...');
                 const applePayComponent = checkout.create('applepay', {
