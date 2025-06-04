@@ -1,54 +1,60 @@
-const express = require('express');
-const { Client, Config } = require('@adyen/api-library');
-require('dotenv').config();
+const express = require("express");
+const cors = require("cors");
+const bodyParser = require("body-parser");
+const dotenv = require("dotenv");
+const axios = require("axios");
+const { Client, Config, CheckoutAPI } = require("@adyen/api-library");
+
+dotenv.config();
 
 const app = express();
-app.use(express.json());
-app.use(express.static('public'));
+app.use(cors());
+app.use(bodyParser.json());
+app.use(express.static("public"));
 
+// Setup Adyen SDK
 const config = new Config();
 config.apiKey = process.env.ADYEN_API_KEY;
+config.merchantAccount = process.env.ADYEN_MERCHANT_ACCOUNT;
 const client = new Client({ config });
-client.setEnvironment("TEST"); // Use "LIVE" for production
+client.setEnvironment("TEST");
+const checkout = new CheckoutAPI(client);
 
-app.post('/api/getClientKey', async (req, res) => {
-    try {
-        res.json({ clientKey: process.env.ADYEN_CLIENT_KEY });
-    } catch (error) {
-        console.error('Error:', error);
-        res.status(500).json({ error: 'Failed to get client key' });
-    }
+// Gửi clientKey về frontend
+app.get("/config", (req, res) => {
+  res.json({ clientKey: process.env.ADYEN_CLIENT_KEY });
 });
 
-app.post('/api/sendTokenToWebhook', async (req, res) => {
-    try {
-        const { token, paymentData } = req.body;
-        
-        // Send to webhook.site
-        const webhookResponse = await fetch('https://webhook.site/c37ecbc0-d876-4b23-99b8-27d428d713e6', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                applePayToken: token,
-                paymentData: paymentData,
-                timestamp: new Date().toISOString()
-            })
-        });
-
-        if (!webhookResponse.ok) {
-            throw new Error('Webhook request failed');
-        }
-
-        res.json({ success: true });
-    } catch (error) {
-        console.error('Webhook error:', error);
-        res.status(500).json({ error: 'Failed to send to webhook' });
-    }
+// Lấy paymentMethods từ Adyen (bao gồm Apple Pay)
+app.post("/paymentMethods", async (req, res) => {
+  try {
+    const result = await checkout.paymentMethods({
+      merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT,
+      countryCode: "US",
+      amount: { currency: "USD", value: 1000 },
+      channel: "Web",
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to retrieve paymentMethods" });
+  }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-}); 
+// Gửi Apple Pay token về webhook
+app.post("/submit-payment", async (req, res) => {
+  const { paymentData } = req.body;
+
+  try {
+    const result = await axios.post("https://webhook.site/c37ecbc0-d876-4b23-99b8-27d428d713e6", {
+      receivedAt: new Date().toISOString(),
+      paymentData,
+    });
+
+    res.json({ status: "Sent to webhook", response: result.data });
+  } catch (error) {
+    console.error("Webhook Error:", error);
+    res.status(500).json({ error: "Failed to send to webhook" });
+  }
+});
+
+app.listen(3000, () => console.log("Server running on http://localhost:3000"));
