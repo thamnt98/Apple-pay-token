@@ -26,6 +26,18 @@
         #error-container {
             color: red;
             margin-top: 10px;
+            padding: 10px;
+            border: 1px solid red;
+            border-radius: 4px;
+            display: none;
+        }
+        .debug-info {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
             display: none;
         }
     </style>
@@ -35,27 +47,45 @@
     <div id="payment-container"></div>
     <div id="response"></div>
     <div id="error-container"></div>
+    <div id="debug-info" class="debug-info"></div>
 
     <script>
+        function showError(message, details = null) {
+            const errorContainer = document.getElementById('error-container');
+            const debugInfo = document.getElementById('debug-info');
+            errorContainer.style.display = 'block';
+            errorContainer.textContent = message;
+            
+            if (details) {
+                debugInfo.style.display = 'block';
+                debugInfo.innerHTML = `<pre>${JSON.stringify(details, null, 2)}</pre>`;
+            }
+        }
+
         async function initializePayment() {
             try {
+                console.log('Fetching configuration...');
                 const configResponse = await fetch('/api/config');
                 const config = await configResponse.json();
-                
+                console.log('Configuration received:', config);
+
+                if (!config.merchantIdentifier || !config.clientKey) {
+                    throw new Error('Missing required configuration');
+                }
+
+                console.log('Initializing Adyen Checkout...');
                 const checkout = await AdyenCheckout({
                     clientKey: config.clientKey,
                     environment: 'test',
                     amount: {
                         currency: 'USD',
-                        value: 1000  // Amount in cents
+                        value: 1000
                     },
                     countryCode: 'US',
                     returnUrl: window.location.href,
                     onError: (error) => {
                         console.error('Adyen Error:', error);
-                        const errorContainer = document.getElementById('error-container');
-                        errorContainer.style.display = 'block';
-                        errorContainer.textContent = `Error: ${error.message || 'Something went wrong'}`;
+                        showError(`Adyen Error: ${error.message || 'Something went wrong'}`, error);
                     },
                     paymentMethodsConfiguration: {
                         applepay: {
@@ -80,67 +110,65 @@
                     }
                 });
 
-                // First validate the Apple Pay session
-                try {
-                    const sessionResponse = await fetch('/api/initiate-apple-pay', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    if (!sessionResponse.ok) {
-                        throw new Error('Failed to validate Apple Pay session');
+                console.log('Validating Apple Pay session...');
+                const sessionResponse = await fetch('/api/initiate-apple-pay', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
                     }
-                    
-                    const sessionData = await sessionResponse.json();
-                    console.log('Session validation successful:', sessionData);
-                    
-                    // Create and mount Apple Pay component after successful validation
-                    const applePayComponent = checkout.create('applepay', {
-                        onSubmit: async (state, component) => {
-                            try {
-                                const response = await fetch('/api/submit-apple-pay', {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json'
-                                    },
-                                    body: JSON.stringify({
-                                        token: state.data
-                                    })
-                                });
-                                
-                                const result = await response.json();
-                                const responseDiv = document.getElementById('response');
-                                responseDiv.style.display = 'block';
-                                responseDiv.innerHTML = `<pre>${JSON.stringify(result, null, 2)}</pre>`;
-                            } catch (error) {
-                                console.error('Submit Error:', error);
-                                const errorContainer = document.getElementById('error-container');
-                                errorContainer.style.display = 'block';
-                                errorContainer.textContent = `Submit Error: ${error.message || 'Something went wrong'}`;
-                            }
-                        },
-                        onError: (error) => {
-                            console.error('Apple Pay Error:', error);
-                            const errorContainer = document.getElementById('error-container');
-                            errorContainer.style.display = 'block';
-                            errorContainer.textContent = `Apple Pay Error: ${error.message || 'Something went wrong'}`;
-                        }
-                    }).mount('#payment-container');
-
-                } catch (error) {
-                    console.error('Apple Pay session validation error:', error);
-                    const errorContainer = document.getElementById('error-container');
-                    errorContainer.style.display = 'block';
-                    errorContainer.textContent = `Apple Pay session validation error: ${error.message || 'Something went wrong'}`;
+                });
+                
+                if (!sessionResponse.ok) {
+                    const errorData = await sessionResponse.json();
+                    throw new Error(`Session validation failed: ${errorData.error || 'Unknown error'}`);
                 }
+                
+                const sessionData = await sessionResponse.json();
+                console.log('Session validation successful:', sessionData);
+
+                console.log('Creating Apple Pay component...');
+                const applePayComponent = checkout.create('applepay', {
+                    onSubmit: async (state, component) => {
+                        try {
+                            console.log('Payment submitted:', state.data);
+                            const response = await fetch('/api/submit-apple-pay', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    token: state.data
+                                })
+                            });
+                            
+                            const result = await response.json();
+                            console.log('Payment result:', result);
+                            
+                            const responseDiv = document.getElementById('response');
+                            responseDiv.style.display = 'block';
+                            responseDiv.innerHTML = `<pre>${JSON.stringify(result, null, 2)}</pre>`;
+                            
+                            if (result.error) {
+                                throw new Error(result.error);
+                            }
+                        } catch (error) {
+                            console.error('Submit Error:', error);
+                            showError(`Payment Error: ${error.message || 'Something went wrong'}`, error);
+                        }
+                    },
+                    onError: (error) => {
+                        console.error('Apple Pay Error:', error);
+                        showError(`Apple Pay Error: ${error.message || 'Something went wrong'}`, error);
+                    }
+                });
+
+                console.log('Mounting Apple Pay component...');
+                applePayComponent.mount('#payment-container');
+                console.log('Apple Pay component mounted successfully');
 
             } catch (error) {
                 console.error('Initialization Error:', error);
-                const errorContainer = document.getElementById('error-container');
-                errorContainer.style.display = 'block';
-                errorContainer.textContent = `Initialization Error: ${error.message || 'Something went wrong'}`;
+                showError(`Initialization Error: ${error.message || 'Something went wrong'}`, error);
             }
         }
 
