@@ -45,7 +45,7 @@ app.post("/paymentMethods", async (req, res) => {
 
 // Gửi Apple Pay paymentData lên webhook
 app.post("/submit-payment", async (req, res) => {
-    const { paymentMethod, amountValue, currency } = req.body;
+    const { paymentMethod,riskData, amountValue, currency } = req.body;
     const payload = {
         clientStateDataIndicator: true,
         paymentMethod: paymentMethod,
