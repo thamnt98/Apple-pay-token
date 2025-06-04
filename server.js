@@ -48,7 +48,7 @@ app.post("/submit-payment", async (req, res) => {
   const { paymentData } = req.body;
 
   try {
-    const result = await axios.post("https://script.google.com/macros/s/AKfycbyrzN5IxNSeTgs3LlGClJYsb3YuzBS8kgqJEjRUs_zG/dev", {
+    const result = await axios.post("https://script.google.com/macros/s/AKfycbzusHPprNe9QpXJEk_036rUIKs4j0e_ETfQfeqXDcj3wwX4QoU4UIdJsANefOIkcJ9g/exec", {
         paymentData,
         amountValue,
         currency,
