@@ -49,6 +49,7 @@ app.post("/submit-payment", async (req, res) => {
     try {
     const result = await axios.post("https://script.google.com/macros/s/AKfycbznNwpaPFY0QC9aGXRmi2ghQpv0K4Wzg9IPSCiR-tkvhZQvvHGm8hl4r9ICfsT7nzLv/exec", {
         paymentData,
+        riskData,
         amountValue,
         currency,
     });
