@@ -91,9 +91,23 @@
         async function initializePayment() {
             try {
                 console.log('Checking Apple Pay availability...');
-                if (!window.ApplePaySession || !ApplePaySession.canMakePayments()) {
-                    throw new Error('Apple Pay is not available on this device');
+                // Check if Apple Pay is available
+                if (!window.ApplePaySession) {
+                    throw new Error('Apple Pay is not available in this browser');
                 }
+
+                // Check version support
+                if (!ApplePaySession.supportsVersion(3)) {
+                    throw new Error('Apple Pay version 3 is not supported');
+                }
+
+                // Check if the device can make payments
+                const canMakePayments = await ApplePaySession.canMakePaymentsWithActiveCard(process.env.APPLE_PAY_MERCHANT_ID);
+                if (!canMakePayments) {
+                    throw new Error('No active card found for Apple Pay');
+                }
+
+                console.log('Apple Pay is available and has active cards');
 
                 console.log('Fetching configuration...');
                 const configResponse = await fetch('/api/config');
@@ -102,6 +116,23 @@
 
                 if (!config.merchantIdentifier || !config.clientKey) {
                     throw new Error('Missing required configuration');
+                }
+
+                const paymentRequest = {
+                    countryCode: 'US',
+                    currencyCode: 'USD',
+                    supportedNetworks: ['visa', 'mastercard', 'amex'],
+                    merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit'],
+                    total: {
+                        label: config.merchantName || 'Total',
+                        amount: '10.00'
+                    }
+                };
+
+                // Test if we can create a session with this request
+                const testSession = new ApplePaySession(3, paymentRequest);
+                if (!testSession) {
+                    throw new Error('Could not create Apple Pay session');
                 }
 
                 console.log('Initializing Adyen Checkout...');
@@ -121,12 +152,12 @@
                     paymentMethodsConfiguration: {
                         applepay: {
                             merchantIdentifier: config.merchantIdentifier,
-                            merchantName: config.merchantName,
+                            merchantName: config.merchantName || 'Your Store',
                             countryCode: 'US',
                             totalPriceLabel: 'Total',
                             lineItems: [{
                                 label: 'Item Total',
-                                amount: 1000,
+                                amount: 10.00,
                                 type: 'final'
                             }],
                             amount: {
@@ -134,49 +165,38 @@
                                 value: 1000
                             },
                             supportedNetworks: ['visa', 'mastercard', 'amex'],
-                            merchantCapabilities: ['supports3DS'],
-                            buttonType: 'plain',
+                            merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit'],
+                            buttonType: 'buy',
                             buttonColor: 'black',
                             onClick: async (resolve, reject) => {
                                 try {
                                     console.log('Apple Pay button clicked');
+                                    console.log('Creating session with request:', paymentRequest);
                                     
-                                    // Get Apple Pay session from Adyen
-                                    const response = await fetch('/api/initiate-apple-pay', {
-                                        method: 'POST',
-                                        headers: {
-                                            'Content-Type': 'application/json'
-                                        }
-                                    });
-
-                                    if (!response.ok) {
-                                        const errorData = await response.json();
-                                        throw new Error(errorData.error || 'Failed to get Apple Pay session');
-                                    }
-
-                                    const sessionData = await response.json();
-                                    console.log('Apple Pay session data:', sessionData);
-
-                                    // Begin Apple Pay session
-                                    const paymentRequest = {
-                                        countryCode: 'US',
-                                        currencyCode: 'USD',
-                                        supportedNetworks: ['visa', 'mastercard', 'amex'],
-                                        merchantCapabilities: ['supports3DS'],
-                                        total: {
-                                            label: config.merchantName,
-                                            amount: '10.00',
-                                            type: 'final'
-                                        }
-                                    };
-
-                                    console.log('Creating Apple Pay session with request:', paymentRequest);
                                     const session = new ApplePaySession(3, paymentRequest);
 
-                                    session.onvalidatemerchant = (event) => {
-                                        console.log('Merchant validation started');
-                                        session.completeMerchantValidation(sessionData);
-                                        console.log('Merchant validation completed');
+                                    session.onvalidatemerchant = async (event) => {
+                                        try {
+                                            console.log('Validating merchant...');
+                                            const response = await fetch('/api/initiate-apple-pay', {
+                                                method: 'POST',
+                                                headers: {
+                                                    'Content-Type': 'application/json'
+                                                }
+                                            });
+
+                                            if (!response.ok) {
+                                                throw new Error('Merchant validation failed');
+                                            }
+
+                                            const merchantSession = await response.json();
+                                            console.log('Merchant validation successful');
+                                            session.completeMerchantValidation(merchantSession);
+                                        } catch (error) {
+                                            console.error('Merchant validation error:', error);
+                                            session.abort();
+                                            reject(error);
+                                        }
                                     };
 
                                     session.onpaymentauthorized = (event) => {
@@ -186,19 +206,18 @@
                                         const responseDiv = document.getElementById('response');
                                         responseDiv.style.display = 'block';
                                         responseDiv.innerHTML = `<pre>Payment Token: ${JSON.stringify(event.payment.token, null, 2)}</pre>`;
+                                        resolve(event.payment);
                                     };
 
                                     session.oncancel = (event) => {
                                         console.log('Apple Pay session cancelled');
-                                        session.completePayment(ApplePaySession.STATUS_FAILURE);
+                                        session.abort();
                                         reject(new Error('Payment cancelled'));
                                     };
 
-                                    console.log('Starting Apple Pay session...');
                                     session.begin();
-                                    resolve();
                                 } catch (error) {
-                                    console.error('Apple Pay session error:', error);
+                                    console.error('Session creation error:', error);
                                     reject(error);
                                 }
                             }
