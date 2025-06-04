@@ -1,32 +1,24 @@
 async function initAdyenApplePay() {
   try {
-    // 1. Tạo session payment từ backend
-    // Mình dùng demo: tạo payment session chung cho tất cả payment methods
-    const sessionResp = await fetch('/api/apple-pay-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ validationUrl: null }) // sẽ gửi validationUrl sau trong onValidateMerchant
-    });
-    // Nhưng session chính xác sẽ được tạo trong onValidateMerchant với validationUrl
-
-    // Thực ra ta sẽ tạo AdyenCheckout với session = null, rồi cài đặt onValidateMerchant để call backend lấy merchant session
-
+    // Tạo AdyenCheckout, không cần tạo session lúc này
     const checkout = await AdyenCheckout({
       environment: 'test',
-      clientKey: "test_6RGRC7WNZVEQ7LSLUT54MI7X34GTQ62F", // Thay bằng clientKey Adyen của bạn
-      paymentMethodsResponse: {}, // có thể lấy paymentMethods từ backend nếu muốn
+      clientKey: "test_6RGRC7WNZVEQ7LSLUT54MI7X34GTQ62F", // Thay bằng Client Key Adyen của bạn
+      paymentMethodsResponse: {}, // hoặc lấy từ backend nếu cần
       onValidateMerchant: async (resolve, reject, validationUrl) => {
         try {
+          // Gửi validationUrl đến backend để tạo merchant session Apple Pay
           const resp = await fetch('/api/apple-pay-session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ validationUrl }),
           });
           if (!resp.ok) throw new Error('Merchant validation failed');
+
           const merchantSession = await resp.json();
           resolve(merchantSession);
         } catch (err) {
-          console.error(err);
+          console.error('Merchant validation error:', err);
           reject(err);
         }
       },
@@ -40,9 +32,9 @@ async function initAdyenApplePay() {
       },
     });
 
-    // 2. Tạo component Apple Pay và mount vào DOM
+    // Tạo component Apple Pay và mount
     const applePayComponent = checkout.create('applepay', {
-      amount: { currency: 'USD', value: 1000 },
+      amount: { currency: 'USD', value: 1000 }, // $10.00
       onSubmit: async (state, component) => {
         try {
           const response = await fetch('/api/payments', {
@@ -50,7 +42,7 @@ async function initAdyenApplePay() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               paymentMethod: state.data.paymentMethod,
-              amount: state.data.amount || { currency: 'USD', value: 1000 },
+              amount: state.data.amount, // lấy trực tiếp từ state.data.amount
               reference: 'ORDER-12345',
             }),
           });
@@ -58,7 +50,6 @@ async function initAdyenApplePay() {
           const paymentResult = await response.json();
 
           if (paymentResult.action) {
-            // Nếu trả về action (3DS, redirect...), xử lý bằng checkout.handleAction
             checkout.handleAction(paymentResult.action);
           } else if (paymentResult.resultCode === 'Authorised') {
             alert('Payment authorized!');
@@ -66,7 +57,7 @@ async function initAdyenApplePay() {
             alert('Payment failed or refused!');
           }
         } catch (error) {
-          alert('Payment error!');
+          alert('Payment processing error!');
           console.error(error);
         }
       },
@@ -74,7 +65,7 @@ async function initAdyenApplePay() {
 
     applePayComponent.mount('#apple-pay-container');
   } catch (error) {
-    console.error('Init error:', error);
+    console.error('Init Adyen Apple Pay error:', error);
   }
 }
 
