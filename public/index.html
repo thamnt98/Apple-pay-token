@@ -15,7 +15,7 @@
   <h2>Thanh toán bằng Apple Pay</h2>
 
   <form id="payment-form">
-    <label>Nhập số tiền (USD): </label>
+    <label>Nhập số tiền (CAD): </label>
     <input type="number" id="amount" min="1" required />
     <button type="submit">Tiếp tục</button>
   </form>
@@ -45,7 +45,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount: {
-            currency: "USD",
+            currency: "CAD",
             value: amountInCents,
           },
         }),
@@ -72,7 +72,7 @@
       // ✅ Truyền amount vào Apple Pay để hiển thị đúng số tiền
       checkout.create("applepay", {
         amount: {
-          currency: "USD",
+          currency: "CAD",
           value: amountInCents,
         },
       }).mount("#applepay-container");
