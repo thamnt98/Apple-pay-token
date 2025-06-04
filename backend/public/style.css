@@ -1,3 +1,8 @@
+body {
+  font-family: Arial, sans-serif;
+  padding: 20px;
+}
+
 #apple-pay-container {
-  margin: 20px;
+  margin-top: 20px;
 }
