@@ -101,14 +101,6 @@
                     throw new Error('Apple Pay version 3 is not supported');
                 }
 
-                // Check if the device can make payments
-                const canMakePayments = await ApplePaySession.canMakePaymentsWithActiveCard(process.env.APPLE_PAY_MERCHANT_ID);
-                if (!canMakePayments) {
-                    throw new Error('No active card found for Apple Pay');
-                }
-
-                console.log('Apple Pay is available and has active cards');
-
                 console.log('Fetching configuration...');
                 const configResponse = await fetch('/api/config');
                 const config = await configResponse.json();
@@ -117,6 +109,14 @@
                 if (!config.merchantIdentifier || !config.clientKey) {
                     throw new Error('Missing required configuration');
                 }
+
+                // Check if the device can make payments
+                const canMakePayments = await ApplePaySession.canMakePaymentsWithActiveCard(config.merchantIdentifier);
+                if (!canMakePayments) {
+                    throw new Error('No active card found for Apple Pay');
+                }
+
+                console.log('Apple Pay is available and has active cards');
 
                 const paymentRequest = {
                     countryCode: 'US',
