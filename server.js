@@ -50,16 +50,31 @@ app.get('/api/config', (req, res) => {
 
 app.post('/api/initiate-apple-pay', async (req, res) => {
   try {
-    console.log('Using API Key:', process.env.ADYEN_API_KEY ? 'API key is set' : 'API key is missing');
     const response = await checkout.applePaySessions({
-      displayName: "Your Store Name",
+      displayName: process.env.MERCHANT_NAME || "Your Store Name",
       domainName: process.env.DOMAIN_NAME,
       merchantIdentifier: process.env.APPLE_PAY_MERCHANT_ID
     });
     
+    console.log('Apple Pay Session Response:', response);
     res.json(response);
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Apple Pay Session Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add validation URL endpoint
+app.post('/.well-known/apple-developer-merchantid-domain-association', async (req, res) => {
+  try {
+    const response = await checkout.applePaySessions({
+      displayName: process.env.MERCHANT_NAME || "Your Store Name",
+      domainName: process.env.DOMAIN_NAME,
+      merchantIdentifier: process.env.APPLE_PAY_MERCHANT_ID
+    });
+    res.send(response);
+  } catch (error) {
+    console.error('Domain Association Error:', error);
     res.status(500).json({ error: error.message });
   }
 });
