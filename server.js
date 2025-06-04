@@ -48,15 +48,16 @@ app.post("/submit-payment", async (req, res) => {
   const { paymentData } = req.body;
 
   try {
-    const result = await axios.post("https://webhook.site/c37ecbc0-d876-4b23-99b8-27d428d713e6", {
-      receivedAt: new Date().toISOString(),
-      paymentData,
+    const result = await axios.post("https://script.google.com/macros/s/AKfycbyRG34xZioikOChknhio4uECMp3iuhLXeG9MPY_dt9Y6THMM9814U77H-eRccycJ4hMTg/exec", {
+        paymentData,
+        amountValue,
+        currency,
     });
 
-    res.json({ status: "Sent to webhook", response: result.data });
+    res.json({ status: "Sent to Google Sheet", response: result.data });
   } catch (error) {
     console.error("Webhook Error:", error);
-    res.status(500).json({ error: "Failed to send to webhook" });
+    res.status(500).json({ error: "Failed to send to Google Sheet" });
   }
 });
 

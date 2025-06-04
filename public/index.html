@@ -60,7 +60,11 @@
           const res = await fetch("/submit-payment", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ paymentData: state.data.paymentMethod }),
+            body: JSON.stringify({
+            paymentData: state.data.paymentMethod,
+            amountValue: amountInCents,
+            currency: "CAD",
+    }),
           });
 
           const result = await res.json();
