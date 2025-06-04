@@ -80,7 +80,7 @@
       };
 
       session.oncancel = async (event) => {
-        alert("Payment canceled: " + event.reason);
+        alert("Payment canceled: " + event);
         session.completePayment(ApplePaySession.STATUS_FAILURE);
       };
 
