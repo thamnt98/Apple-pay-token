@@ -118,23 +118,6 @@
 
                 console.log('Apple Pay is available and has active cards');
 
-                const paymentRequest = {
-                    countryCode: 'US',
-                    currencyCode: 'USD',
-                    supportedNetworks: ['visa', 'mastercard', 'amex'],
-                    merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit'],
-                    total: {
-                        label: config.merchantName || 'Total',
-                        amount: '10.00'
-                    }
-                };
-
-                // Test if we can create a session with this request
-                const testSession = new ApplePaySession(3, paymentRequest);
-                if (!testSession) {
-                    throw new Error('Could not create Apple Pay session');
-                }
-
                 console.log('Initializing Adyen Checkout...');
                 const checkout = await AdyenCheckout({
                     clientKey: config.clientKey,
@@ -171,8 +154,22 @@
                             onClick: async (resolve, reject) => {
                                 try {
                                     console.log('Apple Pay button clicked');
-                                    console.log('Creating session with request:', paymentRequest);
                                     
+                                    // Create payment request right in the click handler
+                                    const paymentRequest = {
+                                        countryCode: 'US',
+                                        currencyCode: 'USD',
+                                        supportedNetworks: ['visa', 'mastercard', 'amex'],
+                                        merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit'],
+                                        total: {
+                                            label: config.merchantName || 'Total',
+                                            amount: '10.00',
+                                            type: 'final'
+                                        }
+                                    };
+
+                                    console.log('Creating Apple Pay session in click handler');
+                                    // Create session directly in click handler
                                     const session = new ApplePaySession(3, paymentRequest);
 
                                     session.onvalidatemerchant = async (event) => {
@@ -186,7 +183,8 @@
                                             });
 
                                             if (!response.ok) {
-                                                throw new Error('Merchant validation failed');
+                                                const errorData = await response.json();
+                                                throw new Error(errorData.error || 'Merchant validation failed');
                                             }
 
                                             const merchantSession = await response.json();
@@ -215,7 +213,10 @@
                                         reject(new Error('Payment cancelled'));
                                     };
 
+                                    // Begin session right after creation
+                                    console.log('Beginning Apple Pay session...');
                                     session.begin();
+
                                 } catch (error) {
                                     console.error('Session creation error:', error);
                                     reject(error);
