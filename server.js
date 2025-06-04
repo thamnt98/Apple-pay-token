@@ -45,16 +45,15 @@ app.post("/paymentMethods", async (req, res) => {
 
 // Gửi Apple Pay paymentData lên webhook
 app.post("/submit-payment", async (req, res) => {
-  const { paymentData } = req.body;
-
-  try {
+    const { paymentData, amountValue, currency } = req.body;
+    try {
     const result = await axios.post("https://script.google.com/macros/s/AKfycbznNwpaPFY0QC9aGXRmi2ghQpv0K4Wzg9IPSCiR-tkvhZQvvHGm8hl4r9ICfsT7nzLv/exec", {
         paymentData,
         amountValue,
         currency,
     });
 
-    res.json({ status: "Sent to Google Sheet", response: result.data });
+    res.json({ status: "Sent to Google Sheet" });
   } catch (error) {
     console.error("Webhook Error:", error);
     res.status(500).json({ error: "Failed to send to Google Sheet" });
