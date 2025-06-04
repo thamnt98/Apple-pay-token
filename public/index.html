@@ -201,30 +201,15 @@
                                         try {
                                             console.log('Payment authorized:', event.payment);
                                             
-                                            // First complete the payment with success status
-                                            session.completePayment(ApplePaySession.STATUS_SUCCESS);
-
-                                            // Then handle the payment data
-                                            const responseDiv = document.getElementById('response');
-                                            responseDiv.style.display = 'block';
-                                            responseDiv.innerHTML = `<pre>Payment Data: ${JSON.stringify(event.payment, null, 2)}</pre>`;
-
-                                            // Get the payment token
-                                            const paymentToken = event.payment.token;
-                                            const paymentData = event.payment.token.paymentData;
-                                            
-                                            console.log('Payment token:', paymentToken);
-                                            console.log('Payment data:', paymentData);
-
-                                            // Send the token to your server
+                                            // Send the token to server first before completing the payment
                                             const response = await fetch('/api/submit-apple-pay', {
                                                 method: 'POST',
                                                 headers: {
                                                     'Content-Type': 'application/json'
                                                 },
                                                 body: JSON.stringify({
-                                                    token: paymentToken,
-                                                    paymentData: paymentData
+                                                    token: event.payment.token,
+                                                    paymentData: event.payment.token.paymentData
                                                 })
                                             });
 
@@ -233,12 +218,24 @@
                                             }
 
                                             const result = await response.json();
-                                            console.log('Server response:', result);
-                                            
-                                            resolve(event.payment);
+                                            console.log('Server payment response:', result);
+
+                                            if (result.status === 'success') {
+                                                // Only complete payment as success if server confirms
+                                                session.completePayment(ApplePaySession.STATUS_SUCCESS);
+                                                
+                                                const responseDiv = document.getElementById('response');
+                                                responseDiv.style.display = 'block';
+                                                responseDiv.innerHTML = `<pre>Payment successful! Transaction ID: ${result.paymentId}</pre>`;
+                                                
+                                                resolve(event.payment);
+                                            } else {
+                                                throw new Error(result.message || 'Payment failed');
+                                            }
                                         } catch (error) {
                                             console.error('Payment processing error:', error);
                                             session.completePayment(ApplePaySession.STATUS_FAILURE);
+                                            showError('Payment failed: ' + error.message);
                                             reject(error);
                                         }
                                     };

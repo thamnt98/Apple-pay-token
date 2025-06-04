@@ -120,23 +120,44 @@ app.post('/api/submit-apple-pay', async (req, res) => {
         applePayToken: paymentData
       },
       merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT,
-      returnUrl: process.env.RAILWAY_STATIC_URL || process.env.DOMAIN_NAME || req.get('host'),
+      returnUrl: `${process.env.RAILWAY_STATIC_URL || process.env.DOMAIN_NAME || 'http://localhost:3000'}/payment-result`,
       channel: 'Web',
       additionalData: {
         allow3DS2: true
-      }
+      },
+      shopperInteraction: "Ecommerce",
+      recurringProcessingModel: "CardOnFile"
     });
 
-    console.log('Payment response:', payment);
+    console.log('Adyen payment response:', payment);
 
-    if (payment.resultCode === 'Authorised') {
+    // Check various possible success states from Adyen
+    const successStates = ['Authorised', 'Received', 'Pending'];
+    if (successStates.includes(payment.resultCode)) {
       res.json({
         status: 'success',
-        message: 'Payment authorized successfully',
-        paymentId: payment.pspReference
+        message: 'Payment processed successfully',
+        paymentId: payment.pspReference,
+        resultCode: payment.resultCode
       });
     } else {
-      throw new Error(`Payment not authorized: ${payment.resultCode}`);
+      // Handle various failure states
+      let errorMessage = 'Payment was declined';
+      switch (payment.resultCode) {
+        case 'Cancelled':
+          errorMessage = 'Payment was cancelled';
+          break;
+        case 'Refused':
+          errorMessage = 'Payment was refused';
+          break;
+        case 'Error':
+          errorMessage = 'Technical error occurred';
+          break;
+        default:
+          errorMessage = `Payment failed: ${payment.resultCode}`;
+      }
+      
+      throw new Error(errorMessage);
     }
   } catch (error) {
     console.error('Payment submission error:', error);
@@ -148,10 +169,13 @@ app.post('/api/submit-apple-pay', async (req, res) => {
         data: error.response.data
       } : 'No response data'
     });
+
+    // Send more detailed error response
     res.status(500).json({
       status: 'error',
       message: error.message,
-      details: error.response ? error.response.data : null
+      details: error.response?.data || null,
+      code: error.response?.status || 500
     });
   }
 });
