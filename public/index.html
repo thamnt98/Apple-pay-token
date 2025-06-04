@@ -50,7 +50,9 @@
         console.log("Merchant session received:", merchantSession);
 
         session.completeMerchantValidation(merchantSession);
+        alert("Merchant validation successful");
     } catch (err) {
+        alert("Merchant validation failed", err);
         console.error("Merchant validation error:", err);
         session.abort();
     }
