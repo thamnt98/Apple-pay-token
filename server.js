@@ -31,6 +31,7 @@ app.post("/validate-merchant", async (req, res) => {
       merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT,
       displayName: "Demo Store",
       domainName: process.env.DOMAIN_NAME,
+      merchantIdentifier: process.env.ADYEN_MERCHANT_IDENTIFIER,
       initiative: "web",
       initiativeContext: process.env.DOMAIN_NAME,
       validationUrl: validationURL,
