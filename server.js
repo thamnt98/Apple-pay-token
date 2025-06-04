@@ -69,9 +69,13 @@ app.post('/api/initiate-apple-pay', async (req, res) => {
     const domain = process.env.RAILWAY_STATIC_URL || process.env.DOMAIN_NAME || req.get('host');
     console.log('Initiating Apple Pay session for domain:', domain);
 
+    // Remove any protocol prefix from domain
+    const cleanDomain = domain.replace(/^https?:\/\//, '');
+    console.log('Clean domain for validation:', cleanDomain);
+
     const response = await checkout.applePaySessions({
-      displayName: process.env.MERCHANT_NAME || 'Adyen Test Merchant',
-      domainName: domain,
+      displayName: process.env.MERCHANT_NAME || 'Test',
+      domainName: cleanDomain,
       merchantIdentifier: process.env.APPLE_PAY_MERCHANT_ID
     });
     

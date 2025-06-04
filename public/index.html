@@ -183,12 +183,43 @@
                                             label: config.merchantName || 'Total',
                                             amount: '10.00',
                                             type: 'final'
-                                        }
+                                        },
+                                        requiredBillingContactFields: ['postalAddress', 'name'],
+                                        requiredShippingContactFields: [],
+                                        lineItems: [{
+                                            label: 'Item Total',
+                                            amount: '10.00',
+                                            type: 'final'
+                                        }]
                                     };
 
-                                    await clientLog('INFO', 'Creating Apple Pay session');
-                                    // Create session directly in click handler
+                                    await clientLog('INFO', 'Payment request created', paymentRequest);
+
+                                    // Verify we can make payments before creating session
+                                    const canMakePayments = await ApplePaySession.canMakePaymentsWithActiveCard(config.merchantIdentifier);
+                                    await clientLog('INFO', 'Can make payments check before session', { canMakePayments });
+                                    
+                                    if (!canMakePayments) {
+                                        throw new Error('No active card available for payment');
+                                    }
+
+                                    // Check if the domain is registered
+                                    const domainRegistered = await ApplePaySession.canMakePayments();
+                                    await clientLog('INFO', 'Domain registration check', { domainRegistered });
+
+                                    if (!domainRegistered) {
+                                        throw new Error('Domain not registered for Apple Pay');
+                                    }
+
+                                    await clientLog('INFO', 'Creating Apple Pay session with version 3');
                                     const session = new ApplePaySession(3, paymentRequest);
+
+                                    // Add event handlers before beginning session
+                                    session.oncancel = async (event) => {
+                                        await clientLog('INFO', 'Apple Pay session cancelled by user');
+                                        session.abort();
+                                        reject(new Error('Payment cancelled by user'));
+                                    };
 
                                     session.onvalidatemerchant = async (event) => {
                                         try {
@@ -288,12 +319,6 @@
                                     session.onshippingcontactselected = async (event) => {
                                         await clientLog('INFO', 'Shipping contact selected', event);
                                         session.completeShippingContactSelection(ApplePaySession.STATUS_SUCCESS);
-                                    };
-
-                                    session.oncancel = async (event) => {
-                                        await clientLog('INFO', 'Apple Pay session cancelled by user');
-                                        session.abort();
-                                        reject(new Error('Payment cancelled by user'));
                                     };
 
                                     // Begin session right after creation
