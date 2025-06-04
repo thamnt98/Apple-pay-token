@@ -180,6 +180,13 @@ app.post('/api/submit-apple-pay', async (req, res) => {
   }
 });
 
+// Add logging endpoint
+app.post('/api/client-log', (req, res) => {
+  const { level, message, data } = req.body;
+  console.log(`[CLIENT ${level}]:`, message, data || '');
+  res.status(200).send('Logged');
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);

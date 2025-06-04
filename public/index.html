@@ -88,9 +88,25 @@
             }
         }
 
+        // Add client logging function
+        async function clientLog(level, message, data = null) {
+            try {
+                console.log(`[${level}]:`, message, data || '');
+                await fetch('/api/client-log', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ level, message, data })
+                });
+            } catch (error) {
+                console.error('Failed to send log to server:', error);
+            }
+        }
+
         async function initializePayment() {
             try {
-                console.log('Checking Apple Pay availability...');
+                await clientLog('INFO', 'Starting payment initialization');
                 // Check if Apple Pay is available
                 if (!window.ApplePaySession) {
                     throw new Error('Apple Pay is not available in this browser');
@@ -101,10 +117,10 @@
                     throw new Error('Apple Pay version 3 is not supported');
                 }
 
-                console.log('Fetching configuration...');
+                await clientLog('INFO', 'Fetching configuration...');
                 const configResponse = await fetch('/api/config');
                 const config = await configResponse.json();
-                console.log('Configuration received:', config);
+                await clientLog('INFO', 'Configuration received', config);
 
                 if (!config.merchantIdentifier || !config.clientKey) {
                     throw new Error('Missing required configuration');
@@ -112,13 +128,15 @@
 
                 // Check if the device can make payments
                 const canMakePayments = await ApplePaySession.canMakePaymentsWithActiveCard(config.merchantIdentifier);
+                await clientLog('INFO', 'Can make payments check:', { canMakePayments });
+                
                 if (!canMakePayments) {
                     throw new Error('No active card found for Apple Pay');
                 }
 
-                console.log('Apple Pay is available and has active cards');
+                await clientLog('INFO', 'Apple Pay is available and has active cards');
 
-                console.log('Initializing Adyen Checkout...');
+                await clientLog('INFO', 'Initializing Adyen Checkout...');
                 const checkout = await AdyenCheckout({
                     clientKey: config.clientKey,
                     environment: 'test',
@@ -128,8 +146,8 @@
                     },
                     countryCode: 'US',
                     returnUrl: window.location.href,
-                    onError: (error) => {
-                        console.error('Adyen Error:', error);
+                    onError: async (error) => {
+                        await clientLog('ERROR', 'Adyen Error', error);
                         showError(`Adyen Error: ${error.message || 'Something went wrong'}`, error);
                     },
                     paymentMethodsConfiguration: {
@@ -153,7 +171,7 @@
                             buttonColor: 'black',
                             onClick: async (resolve, reject) => {
                                 try {
-                                    console.log('Apple Pay button clicked');
+                                    await clientLog('INFO', 'Apple Pay button clicked');
                                     
                                     // Create payment request right in the click handler
                                     const paymentRequest = {
@@ -168,13 +186,13 @@
                                         }
                                     };
 
-                                    console.log('Creating Apple Pay session in click handler');
+                                    await clientLog('INFO', 'Creating Apple Pay session');
                                     // Create session directly in click handler
                                     const session = new ApplePaySession(3, paymentRequest);
 
                                     session.onvalidatemerchant = async (event) => {
                                         try {
-                                            console.log('Validating merchant...');
+                                            await clientLog('INFO', 'Validating merchant', { validationURL: event.validationURL });
                                             const response = await fetch('/api/initiate-apple-pay', {
                                                 method: 'POST',
                                                 headers: {
@@ -184,14 +202,15 @@
 
                                             if (!response.ok) {
                                                 const errorData = await response.json();
+                                                await clientLog('ERROR', 'Merchant validation failed', errorData);
                                                 throw new Error(errorData.error || 'Merchant validation failed');
                                             }
 
                                             const merchantSession = await response.json();
-                                            console.log('Merchant validation successful');
+                                            await clientLog('INFO', 'Merchant validation successful', merchantSession);
                                             session.completeMerchantValidation(merchantSession);
                                         } catch (error) {
-                                            console.error('Merchant validation error:', error);
+                                            await clientLog('ERROR', 'Merchant validation error', error);
                                             session.abort();
                                             reject(error);
                                         }
@@ -199,9 +218,10 @@
 
                                     session.onpaymentauthorized = async (event) => {
                                         try {
-                                            console.log('Payment authorized:', event.payment);
+                                            await clientLog('INFO', 'Payment authorized', { payment: event.payment });
                                             
                                             // Send the token to server first before completing the payment
+                                            await clientLog('INFO', 'Sending payment data to server');
                                             const response = await fetch('/api/submit-apple-pay', {
                                                 method: 'POST',
                                                 headers: {
@@ -214,14 +234,16 @@
                                             });
 
                                             if (!response.ok) {
-                                                throw new Error('Failed to submit payment to server');
+                                                const errorData = await response.json();
+                                                await clientLog('ERROR', 'Server payment error', errorData);
+                                                throw new Error(errorData.message || 'Failed to submit payment to server');
                                             }
 
                                             const result = await response.json();
-                                            console.log('Server payment response:', result);
+                                            await clientLog('INFO', 'Server payment response', result);
 
                                             if (result.status === 'success') {
-                                                // Only complete payment as success if server confirms
+                                                await clientLog('INFO', 'Payment successful, completing Apple Pay session');
                                                 session.completePayment(ApplePaySession.STATUS_SUCCESS);
                                                 
                                                 const responseDiv = document.getElementById('response');
@@ -230,46 +252,56 @@
                                                 
                                                 resolve(event.payment);
                                             } else {
+                                                await clientLog('ERROR', 'Payment failed', result);
                                                 throw new Error(result.message || 'Payment failed');
                                             }
                                         } catch (error) {
-                                            console.error('Payment processing error:', error);
+                                            await clientLog('ERROR', 'Payment processing error', {
+                                                message: error.message,
+                                                stack: error.stack,
+                                                name: error.name
+                                            });
                                             session.completePayment(ApplePaySession.STATUS_FAILURE);
                                             showError('Payment failed: ' + error.message);
                                             reject(error);
                                         }
                                     };
 
-                                    session.onpaymentmethodselected = (event) => {
-                                        console.log('Payment method selected');
-                                        session.completePaymentMethodSelection({
-                                            paymentAmount: 1000,
-                                            type: 'final'
-                                        });
+                                    session.onpaymentmethodselected = async (event) => {
+                                        await clientLog('INFO', 'Payment method selected', event);
+                                        const update = {
+                                            newTotal: {
+                                                type: 'final',
+                                                label: 'Total',
+                                                amount: '10.00'
+                                            }
+                                        };
+                                        await clientLog('INFO', 'Completing payment method selection', update);
+                                        session.completePaymentMethodSelection(update);
                                     };
 
-                                    session.onshippingmethodselected = (event) => {
-                                        console.log('Shipping method selected');
+                                    session.onshippingmethodselected = async (event) => {
+                                        await clientLog('INFO', 'Shipping method selected', event);
                                         session.completeShippingMethodSelection(ApplePaySession.STATUS_SUCCESS);
                                     };
 
-                                    session.onshippingcontactselected = (event) => {
-                                        console.log('Shipping contact selected');
+                                    session.onshippingcontactselected = async (event) => {
+                                        await clientLog('INFO', 'Shipping contact selected', event);
                                         session.completeShippingContactSelection(ApplePaySession.STATUS_SUCCESS);
                                     };
 
-                                    session.oncancel = (event) => {
-                                        console.log('Apple Pay session cancelled');
+                                    session.oncancel = async (event) => {
+                                        await clientLog('INFO', 'Apple Pay session cancelled by user');
                                         session.abort();
                                         reject(new Error('Payment cancelled by user'));
                                     };
 
                                     // Begin session right after creation
-                                    console.log('Beginning Apple Pay session...');
+                                    await clientLog('INFO', 'Beginning Apple Pay session');
                                     session.begin();
 
                                 } catch (error) {
-                                    console.error('Session creation error:', error);
+                                    await clientLog('ERROR', 'Session creation error', error);
                                     reject(error);
                                 }
                             }
@@ -277,14 +309,14 @@
                     }
                 });
 
-                console.log('Creating Apple Pay component...');
+                await clientLog('INFO', 'Creating Apple Pay component');
                 const applePayComponent = checkout.create('applepay');
-                console.log('Mounting Apple Pay component...');
+                await clientLog('INFO', 'Mounting Apple Pay component');
                 applePayComponent.mount('#payment-container');
-                console.log('Apple Pay component mounted successfully');
+                await clientLog('INFO', 'Apple Pay component mounted successfully');
 
             } catch (error) {
-                console.error('Initialization Error:', error);
+                await clientLog('ERROR', 'Initialization Error', error);
                 showError(`Initialization Error: ${error.message || 'Something went wrong'}`, error);
             }
         }
