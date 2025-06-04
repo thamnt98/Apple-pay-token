@@ -11,14 +11,12 @@ const requiredEnvVars = [
   'ADYEN_API_KEY',
   'ADYEN_CLIENT_KEY',
   'ADYEN_MERCHANT_ACCOUNT',
-  'APPLE_PAY_MERCHANT_ID',
-  'DOMAIN_NAME',
+  'APPLE_PAY_MERCHANT_ID'
 ];
 
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
-    console.error(`Error: ${envVar} is not set in environment variables`);
-    process.exit(1);
+    console.error(`Warning: ${envVar} is not set in environment variables`);
   }
 }
 
@@ -26,14 +24,14 @@ const app = express();
 
 // Configure CORS
 app.use(cors({
-  origin: process.env.DOMAIN_NAME.startsWith('localhost') ? 'http://localhost:3000' : process.env.DOMAIN_NAME,
+  origin: '*',  // Allow all origins in development
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
   credentials: true
 }));
 
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Initialize Adyen client
 const config = new Config();
@@ -55,26 +53,25 @@ app.get('/.well-known/apple-developer-merchantid-domain-association', (req, res)
 });
 
 app.get('/api/config', (req, res) => {
-  console.log('Sending configuration to client');
+  const domain = process.env.RAILWAY_STATIC_URL || process.env.DOMAIN_NAME || req.get('host');
+  console.log('Config request from domain:', domain);
+  
   res.json({
     clientKey: process.env.ADYEN_CLIENT_KEY,
     merchantIdentifier: process.env.APPLE_PAY_MERCHANT_ID,
-    merchantName: process.env.MERCHANT_NAME ? process.env.MERCHANT_NAME : 'Adyen Test Merchant'
+    merchantName: process.env.MERCHANT_NAME || 'Adyen Test Merchant',
+    domain: domain
   });
 });
 
 app.post('/api/initiate-apple-pay', async (req, res) => {
   try {
-    console.log('Initiating Apple Pay session with config:', {
-      displayName: process.env.MERCHANT_NAME || 'Adyen Test Merchant',
-      domainName: process.env.DOMAIN_NAME,
-      merchantIdentifier: process.env.APPLE_PAY_MERCHANT_ID
-    });
+    const domain = process.env.RAILWAY_STATIC_URL || process.env.DOMAIN_NAME || req.get('host');
+    console.log('Initiating Apple Pay session for domain:', domain);
 
-    // Call Adyen API to create Apple Pay session
     const response = await checkout.applePaySessions({
       displayName: process.env.MERCHANT_NAME || 'Adyen Test Merchant',
-      domainName: process.env.DOMAIN_NAME,
+      domainName: domain,
       merchantIdentifier: process.env.APPLE_PAY_MERCHANT_ID
     });
     
@@ -143,12 +140,12 @@ app.post('/api/submit-apple-pay', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
   console.log('Environment:', {
     nodeEnv: process.env.NODE_ENV,
-    domain: process.env.DOMAIN_NAME,
-    merchantName: process.env.MERCHANT_NAME,
+    port: PORT,
+    domain: process.env.RAILWAY_STATIC_URL || process.env.DOMAIN_NAME,
     hasApiKey: !!process.env.ADYEN_API_KEY,
     hasClientKey: !!process.env.ADYEN_CLIENT_KEY,
     hasMerchantAccount: !!process.env.ADYEN_MERCHANT_ACCOUNT,
