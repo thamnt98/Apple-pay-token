@@ -37,19 +37,24 @@
       const session = new ApplePaySession(3, paymentRequest);
 
       session.onvalidatemerchant = async (event) => {
-        try {
-          const response = await fetch("/api/apple-pay-session", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({})
-          });
-          const { session: merchantSession } = await response.json();
-          session.completeMerchantValidation(merchantSession);
-        } catch (err) {
-          console.error("Error during merchant validation:", err);
-          session.abort();
-        }
-      };
+    console.log("Validating merchant...");
+    try {
+        const response = await fetch("/api/apple-pay-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({})
+        });
+        if (!response.ok) throw new Error("Failed to fetch merchant session");
+
+        const { session: merchantSession } = await response.json();
+        console.log("Merchant session received:", merchantSession);
+
+        session.completeMerchantValidation(merchantSession);
+    } catch (err) {
+        console.error("Merchant validation error:", err);
+        session.abort();
+    }
+    };
 
       session.onpaymentauthorized = async (event) => {
         const token = event.payment.token;
