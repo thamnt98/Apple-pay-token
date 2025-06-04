@@ -28,14 +28,25 @@ app.get("/config", (req, res) => {
 // Lấy paymentMethods từ Adyen (bao gồm Apple Pay)
 app.post("/paymentMethods", async (req, res) => {
   try {
+    const { amount } = req.body;
+    
+    // Validate amount
+    if (!amount || isNaN(amount) || amount <= 0) {
+      return res.status(400).json({ error: "Invalid amount. Please provide a valid positive number." });
+    }
+
+    // Convert amount to cents (Adyen requires amount in minor units)
+    const amountInCents = Math.round(amount * 100);
+
     const result = await checkout.paymentMethods({
       merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT,
       countryCode: "CA",
-      amount: { currency: "CAD", value: 1000 },
+      amount: { currency: "CAD", value: amountInCents },
       channel: "Web",
     });
     res.json(result);
   } catch (err) {
+    console.error("Error:", err);
     res.status(500).json({ error: "Failed to retrieve paymentMethods" });
   }
 });
