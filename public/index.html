@@ -34,19 +34,24 @@
         return;
       }
 
+      const amountInCents = parseInt(amountValue * 100);
+
+      // Lấy clientKey từ server
       const { clientKey } = await fetch("/config").then(res => res.json());
 
+      // Gửi số tiền đến server để lấy danh sách payment methods (bao gồm Apple Pay)
       const paymentMethodsResponse = await fetch("/paymentMethods", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount: {
             currency: "USD",
-            value: parseInt(amountValue * 100),
+            value: amountInCents,
           },
         }),
       }).then(res => res.json());
 
+      // Khởi tạo Adyen Checkout
       const checkout = await AdyenCheckout({
         environment: "test",
         clientKey,
@@ -64,7 +69,13 @@
         },
       });
 
-      checkout.create("applepay").mount("#applepay-container");
+      // ✅ Truyền amount vào Apple Pay để hiển thị đúng số tiền
+      checkout.create("applepay", {
+        amount: {
+          currency: "USD",
+          value: amountInCents,
+        },
+      }).mount("#applepay-container");
     });
   </script>
 </body>
