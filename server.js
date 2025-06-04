@@ -36,7 +36,6 @@ app.post("/api/apple-pay-session", async (req, res) => {
     const sessionResp = await axios.post(
       "https://checkout-test.adyen.com/v71/applePay/sessions",
       {
-        merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT,
         displayName: "Demo Store",
         domainName: process.env.DOMAIN_NAME, // phải khớp domain frontend
         initiative: "web",
