@@ -8,6 +8,7 @@
   <style>
     body { font-family: sans-serif; padding: 20px; }
     input, button { padding: 10px; font-size: 16px; }
+    #applepay-container { margin-top: 20px; }
   </style>
 </head>
 <body>
@@ -19,7 +20,7 @@
     <button type="submit">Tiếp tục</button>
   </form>
 
-  <div id="applepay-container" style="margin-top: 20px;"></div>
+  <div id="applepay-container"></div>
 
   <script>
     const form = document.getElementById("payment-form");
@@ -41,7 +42,7 @@
         body: JSON.stringify({
           amount: {
             currency: "USD",
-            value: parseInt(amountValue * 100), // chuyển sang cent
+            value: parseInt(amountValue * 100),
           },
         }),
       }).then(res => res.json());

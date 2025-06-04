@@ -12,38 +12,38 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static("public"));
 
-// Setup Adyen SDK
+// Adyen SDK cấu hình
 const config = new Config();
 config.apiKey = process.env.ADYEN_API_KEY;
 config.merchantAccount = process.env.ADYEN_MERCHANT_ACCOUNT;
 const client = new Client({ config });
-client.setEnvironment("TEST");
+client.setEnvironment("TEST"); // Sử dụng môi trường test
 const checkout = new CheckoutAPI(client);
 
-// Gửi clientKey về frontend
+// Gửi client key về frontend
 app.get("/config", (req, res) => {
   res.json({ clientKey: process.env.ADYEN_CLIENT_KEY });
 });
 
-// Lấy paymentMethods từ Adyen (bao gồm Apple Pay)
+// Trả về danh sách payment methods (bao gồm Apple Pay)
 app.post("/paymentMethods", async (req, res) => {
-    const { amount } = req.body;
-  
-    try {
-      const result = await checkout.paymentMethods({
-        merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT,
-        countryCode: "US",
-        amount: amount || { currency: "USD", value: 1000 }, // fallback nếu không có
-        channel: "Web",
-      });
-      res.json(result);
-    } catch (err) {
-      res.status(500).json({ error: "Failed to retrieve paymentMethods" });
-    }
-  });
-  
+  const { amount } = req.body;
 
-// Gửi Apple Pay token về webhook
+  try {
+    const result = await checkout.paymentMethods({
+      merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT,
+      countryCode: "US",
+      amount: amount || { currency: "USD", value: 1000 },
+      channel: "Web",
+    });
+    res.json(result);
+  } catch (err) {
+    console.error("paymentMethods error:", err);
+    res.status(500).json({ error: "Failed to retrieve paymentMethods" });
+  }
+});
+
+// Gửi Apple Pay paymentData lên webhook
 app.post("/submit-payment", async (req, res) => {
   const { paymentData } = req.body;
 
@@ -60,4 +60,5 @@ app.post("/submit-payment", async (req, res) => {
   }
 });
 
-app.listen(3000, () => console.log("Server running on http://localhost:3000"));
+// Khởi động server
+app.listen(3000, () => console.log("✅ Server chạy tại http://localhost:3000"));
