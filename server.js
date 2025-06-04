@@ -42,7 +42,9 @@ const checkout = new CheckoutAPI(client);
 
 app.get('/api/config', (req, res) => {
   res.json({
-    clientKey: process.env.ADYEN_CLIENT_KEY
+    clientKey: process.env.ADYEN_CLIENT_KEY,
+    merchantIdentifier: process.env.APPLE_PAY_MERCHANT_ID,
+    merchantName: process.env.MERCHANT_NAME || 'Your Store Name'
   });
 });
 
