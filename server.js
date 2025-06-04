@@ -71,17 +71,7 @@ app.post('/api/initiate-apple-pay', async (req, res) => {
       merchantIdentifier: process.env.APPLE_PAY_MERCHANT_ID
     });
 
-    // For local development, return a mock validation
-    if (process.env.DOMAIN_NAME.includes('localhost')) {
-      console.log('Local development detected, returning mock validation');
-      res.json({
-        epochTimestamp: Date.now(),
-        expiresAt: Date.now() + 3600000, // 1 hour from now
-        merchantSessionIdentifier: "merchant_session_" + Date.now()
-      });
-      return;
-    }
-
+    // Call Adyen API to create Apple Pay session
     const response = await checkout.applePaySessions({
       displayName: process.env.MERCHANT_NAME || 'Adyen Test Merchant',
       domainName: process.env.DOMAIN_NAME,
