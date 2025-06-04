@@ -18,6 +18,12 @@ async function initializeApplePay() {
             analytics: {
                 enabled: false
             },
+            paymentMethodsResponse: {
+                paymentMethods: [{
+                    type: "applepay",
+                    name: "Apple Pay"
+                }]
+            },
             amount: {
                 value: 1000,
                 currency: 'USD'
@@ -52,7 +58,9 @@ async function initializeApplePay() {
                         ],
                         requiredBillingContactFields: ["postalAddress", "name"],
                         requiredShippingContactFields: []
-                    }
+                    },
+                    buttonColor: 'black',
+                    buttonType: 'plain'
                 }
             }
         };
