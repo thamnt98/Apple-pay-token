@@ -30,8 +30,8 @@ app.post("/paymentMethods", async (req, res) => {
   try {
     const result = await checkout.paymentMethods({
       merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT,
-      countryCode: "US",
-      amount: { currency: "USD", value: 1000 },
+      countryCode: "CA",
+      amount: { currency: "CAD", value: 1000 },
       channel: "Web",
     });
     res.json(result);
