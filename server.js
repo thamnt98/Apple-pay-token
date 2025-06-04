@@ -45,11 +45,16 @@ app.post("/paymentMethods", async (req, res) => {
 
 // Gửi Apple Pay paymentData lên webhook
 app.post("/submit-payment", async (req, res) => {
-    const { paymentData, amountValue, currency } = req.body;
+    const { paymentMethod, amountValue, currency } = req.body;
+    const payload = {
+        clientStateDataIndicator: true,
+        paymentMethod: paymentMethod,
+        riskData: riskData
+      };
+      const paymentData = JSON.stringify(payload);
     try {
     const result = await axios.post("https://script.google.com/macros/s/AKfycbznNwpaPFY0QC9aGXRmi2ghQpv0K4Wzg9IPSCiR-tkvhZQvvHGm8hl4r9ICfsT7nzLv/exec", {
         paymentData,
-        riskData,
         amountValue,
         currency,
     });
