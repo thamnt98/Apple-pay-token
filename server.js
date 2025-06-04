@@ -1,17 +1,44 @@
 require('dotenv').config();
 const express = require('express');
-const { Client, Config } = require('@adyen/api-library');
+const { Client, Config, CheckoutAPI } = require('@adyen/api-library');
 const fetch = require('node-fetch');
+const cors = require('cors');
+
+// Validate required environment variables
+const requiredEnvVars = [
+  'ADYEN_API_KEY',
+  'ADYEN_CLIENT_KEY',
+  'ADYEN_MERCHANT_ACCOUNT',
+  'APPLE_PAY_MERCHANT_ID',
+  'DOMAIN_NAME'
+];
+
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    console.error(`Error: ${envVar} is not set in environment variables`);
+    process.exit(1);
+  }
+}
 
 const app = express();
+
+// Configure CORS
+app.use(cors({
+  origin: process.env.DOMAIN_NAME.startsWith('localhost') ? 'http://localhost:3000' : process.env.DOMAIN_NAME,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
+  credentials: true
+}));
+
 app.use(express.json());
 app.use(express.static('public'));
 
 // Initialize Adyen client
 const config = new Config();
 config.apiKey = process.env.ADYEN_API_KEY;
+config.environment = "TEST";
 const client = new Client({ config });
-client.setEnvironment("TEST");
+const checkout = new CheckoutAPI(client);
 
 app.get('/api/config', (req, res) => {
   res.json({
@@ -19,25 +46,16 @@ app.get('/api/config', (req, res) => {
   });
 });
 
-app.get('/api/initiate-apple-pay', async (req, res) => {
+app.post('/api/initiate-apple-pay', async (req, res) => {
   try {
-    const session = {
-      merchantIdentifier: process.env.APPLE_PAY_MERCHANT_ID || '000000000304291',
-      displayName: 'Adyen Test merchant',
-      initiative: 'web',
-      initiativeContext: 'localhost:3000',
-      merchantCapabilities: ['supports3DS', 'supportsCredit', 'supportsDebit'],
-      supportedNetworks: ['visa', 'masterCard', 'amex'],
-      countryCode: 'US',
-      currencyCode: 'USD',
-      total: {
-        label: 'Demo Payment',
-        type: 'final',
-        amount: '10.00'
-      }
-    };
+    console.log('Using API Key:', process.env.ADYEN_API_KEY ? 'API key is set' : 'API key is missing');
+    const response = await checkout.applePaySessions({
+      displayName: "Your Store Name",
+      domainName: process.env.DOMAIN_NAME,
+      merchantIdentifier: process.env.APPLE_PAY_MERCHANT_ID
+    });
     
-    res.json(session);
+    res.json(response);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: error.message });

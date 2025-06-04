@@ -33,23 +33,15 @@
     <script>
         async function initializePayment() {
             try {
-                // Get configuration
                 const configResponse = await fetch('/api/config');
                 const config = await configResponse.json();
                 
-                // Get Apple Pay session data
-                const applePayResponse = await fetch('/api/initiate-apple-pay');
-                if (!applePayResponse.ok) {
-                    throw new Error(`HTTP error! status: ${applePayResponse.status}`);
-                }
-                const applePaySession = await applePayResponse.json();
-
                 const checkout = await AdyenCheckout({
                     clientKey: config.clientKey,
                     environment: 'test',
                     amount: {
                         currency: 'USD',
-                        value: 1000 // Amount in cents
+                        value: 10
                     },
                     onSubmit: async (state, component) => {
                         try {
@@ -63,40 +55,41 @@
                                 })
                             });
                             
-                            if (!response.ok) {
-                                throw new Error(`HTTP error! status: ${response.status}`);
-                            }
-                            
                             const result = await response.json();
                             const responseDiv = document.getElementById('response');
                             responseDiv.style.display = 'block';
                             responseDiv.innerHTML = `<pre>${JSON.stringify(result, null, 2)}</pre>`;
                         } catch (error) {
-                            console.error('Payment submission error:', error);
-                            const responseDiv = document.getElementById('response');
-                            responseDiv.style.display = 'block';
-                            responseDiv.innerHTML = `<pre>Error: ${error.message}</pre>`;
+                            console.error('Error:', error);
                         }
                     },
                     paymentMethodsConfiguration: {
                         applepay: {
-                            merchantId: applePaySession.merchantIdentifier,
-                            merchantName: applePaySession.displayName,
-                            countryCode: applePaySession.countryCode,
+                            merchantId: '000000000304291', // Use Adyen's test merchant ID
+                            merchantName: 'Adyen Test merchant',
+                            countryCode: 'US',
                         }
                     }
                 });
 
+                const response = await fetch('/api/initiate-apple-pay', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const session = await response.json();
+
                 const applePayComponent = checkout.create('applepay', {
-                    amount: applePaySession.total,
-                    countryCode: applePaySession.countryCode,
+                    amount: {
+                        currency: 'USD',
+                        value: 10
+                    },
+                    countryCode: 'US',
                 }).mount('#payment-container');
 
             } catch (error) {
-                console.error('Initialization error:', error);
-                const responseDiv = document.getElementById('response');
-                responseDiv.style.display = 'block';
-                responseDiv.innerHTML = `<pre>Error: ${error.message}</pre>`;
+                console.error('Error:', error);
             }
         }
 
