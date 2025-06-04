@@ -40,6 +40,7 @@ app.post("/api/apple-pay-session", async (req, res) => {
         displayName: "Demo Store",
         domainName: process.env.DOMAIN_NAME, // phải khớp domain frontend
         initiative: "web",
+        merchantIdentifier: process.env.ADYEN_MERCHANT_IDENTIFIER,
         initiativeContext: process.env.DOMAIN_NAME
       },
       {
