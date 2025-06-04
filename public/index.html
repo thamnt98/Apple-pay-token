@@ -61,7 +61,7 @@
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-            paymentData: state.data.paymentMethod,
+            paymentMethod: state.data.paymentMethod,
             riskData: state.data.riskData,
             amountValue: amountInCents,
             currency: "CAD",
