@@ -59,6 +59,7 @@
     };
 
       session.onpaymentauthorized = async (event) => {
+        alert("Payment authorized");
         const token = event.payment.token;
         try {
           await fetch("/api/forward-token", {
@@ -68,9 +69,25 @@
           });
           session.completePayment(ApplePaySession.STATUS_SUCCESS);
         } catch (err) {
+          alert("Error forwarding token: " + err.message);
           console.error("Error forwarding token:", err);
           session.completePayment(ApplePaySession.STATUS_FAILURE);
         }
+      };
+
+      session.onpaymentrejected = async (event) => {
+        alert("Payment rejected: " + event.payment.status);
+        session.completePayment(ApplePaySession.STATUS_FAILURE);
+      };
+
+      session.oncancel = async (event) => {
+        alert("Payment canceled");
+        session.completePayment(ApplePaySession.STATUS_FAILURE);
+      };
+
+      session.onError = async (event) => {
+        alert("Payment error: " + event.error.message);
+        session.completePayment(ApplePaySession.STATUS_FAILURE);
       };
 
       session.begin();
