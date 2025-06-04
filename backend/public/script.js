@@ -13,7 +13,7 @@ async function initAdyenApplePay() {
 
     const checkout = await AdyenCheckout({
       environment: 'test',
-      clientKey: process.env.ADYEN_CLIENT_KEY, // Thay bằng clientKey Adyen của bạn
+      clientKey: "test_6RGRC7WNZVEQ7LSLUT54MI7X34GTQ62F", // Thay bằng clientKey Adyen của bạn
       paymentMethodsResponse: {}, // có thể lấy paymentMethods từ backend nếu muốn
       onValidateMerchant: async (resolve, reject, validationUrl) => {
         try {
