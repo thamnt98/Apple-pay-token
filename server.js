@@ -96,34 +96,50 @@ app.post('/api/initiate-apple-pay', async (req, res) => {
 
 app.post('/api/submit-apple-pay', async (req, res) => {
   try {
-    console.log('Received Apple Pay token submission');
-    const { token } = req.body;
-    
-    if (!token) {
-      throw new Error('No token provided');
+    console.log('Received Apple Pay submission');
+    const { token, paymentData } = req.body;
+
+    if (!token || !paymentData) {
+      throw new Error('Missing payment data');
     }
 
-    console.log('Token received:', JSON.stringify(token, null, 2));
+    console.log('Processing payment with data:', {
+      token: 'present',
+      paymentData: 'present'
+    });
 
-    // Create a payment session with Adyen
-    const paymentResponse = await checkout.payments({
+    // Create payment with Adyen
+    const payment = await checkout.payments({
       amount: {
         currency: 'USD',
         value: 1000 // $10.00
       },
       reference: `apple-pay-${Date.now()}`,
-      paymentMethod: token,
+      paymentMethod: {
+        type: 'applepay',
+        applePayToken: paymentData
+      },
       merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT,
+      returnUrl: process.env.RAILWAY_STATIC_URL || process.env.DOMAIN_NAME || req.get('host'),
       channel: 'Web',
-      returnUrl: process.env.DOMAIN_NAME.startsWith('localhost') 
-        ? 'http://localhost:3000' 
-        : process.env.DOMAIN_NAME
+      additionalData: {
+        allow3DS2: true
+      }
     });
 
-    console.log('Payment Response:', paymentResponse);
-    res.json(paymentResponse);
+    console.log('Payment response:', payment);
+
+    if (payment.resultCode === 'Authorised') {
+      res.json({
+        status: 'success',
+        message: 'Payment authorized successfully',
+        paymentId: payment.pspReference
+      });
+    } else {
+      throw new Error(`Payment not authorized: ${payment.resultCode}`);
+    }
   } catch (error) {
-    console.error('Payment Error:', error);
+    console.error('Payment submission error:', error);
     console.error('Error details:', {
       message: error.message,
       stack: error.stack,
@@ -132,8 +148,9 @@ app.post('/api/submit-apple-pay', async (req, res) => {
         data: error.response.data
       } : 'No response data'
     });
-    res.status(500).json({ 
-      error: error.message,
+    res.status(500).json({
+      status: 'error',
+      message: error.message,
       details: error.response ? error.response.data : null
     });
   }

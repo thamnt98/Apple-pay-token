@@ -197,20 +197,74 @@
                                         }
                                     };
 
-                                    session.onpaymentauthorized = (event) => {
-                                        console.log('Payment authorized:', event.payment);
-                                        session.completePayment(ApplePaySession.STATUS_SUCCESS);
-                                        
-                                        const responseDiv = document.getElementById('response');
-                                        responseDiv.style.display = 'block';
-                                        responseDiv.innerHTML = `<pre>Payment Token: ${JSON.stringify(event.payment.token, null, 2)}</pre>`;
-                                        resolve(event.payment);
+                                    session.onpaymentauthorized = async (event) => {
+                                        try {
+                                            console.log('Payment authorized:', event.payment);
+                                            
+                                            // First complete the payment with success status
+                                            session.completePayment(ApplePaySession.STATUS_SUCCESS);
+
+                                            // Then handle the payment data
+                                            const responseDiv = document.getElementById('response');
+                                            responseDiv.style.display = 'block';
+                                            responseDiv.innerHTML = `<pre>Payment Data: ${JSON.stringify(event.payment, null, 2)}</pre>`;
+
+                                            // Get the payment token
+                                            const paymentToken = event.payment.token;
+                                            const paymentData = event.payment.token.paymentData;
+                                            
+                                            console.log('Payment token:', paymentToken);
+                                            console.log('Payment data:', paymentData);
+
+                                            // Send the token to your server
+                                            const response = await fetch('/api/submit-apple-pay', {
+                                                method: 'POST',
+                                                headers: {
+                                                    'Content-Type': 'application/json'
+                                                },
+                                                body: JSON.stringify({
+                                                    token: paymentToken,
+                                                    paymentData: paymentData
+                                                })
+                                            });
+
+                                            if (!response.ok) {
+                                                throw new Error('Failed to submit payment to server');
+                                            }
+
+                                            const result = await response.json();
+                                            console.log('Server response:', result);
+                                            
+                                            resolve(event.payment);
+                                        } catch (error) {
+                                            console.error('Payment processing error:', error);
+                                            session.completePayment(ApplePaySession.STATUS_FAILURE);
+                                            reject(error);
+                                        }
+                                    };
+
+                                    session.onpaymentmethodselected = (event) => {
+                                        console.log('Payment method selected');
+                                        session.completePaymentMethodSelection({
+                                            paymentAmount: 1000,
+                                            type: 'final'
+                                        });
+                                    };
+
+                                    session.onshippingmethodselected = (event) => {
+                                        console.log('Shipping method selected');
+                                        session.completeShippingMethodSelection(ApplePaySession.STATUS_SUCCESS);
+                                    };
+
+                                    session.onshippingcontactselected = (event) => {
+                                        console.log('Shipping contact selected');
+                                        session.completeShippingContactSelection(ApplePaySession.STATUS_SUCCESS);
                                     };
 
                                     session.oncancel = (event) => {
                                         console.log('Apple Pay session cancelled');
                                         session.abort();
-                                        reject(new Error('Payment cancelled'));
+                                        reject(new Error('Payment cancelled by user'));
                                     };
 
                                     // Begin session right after creation
