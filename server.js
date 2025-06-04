@@ -27,18 +27,21 @@ app.get("/config", (req, res) => {
 
 // Lấy paymentMethods từ Adyen (bao gồm Apple Pay)
 app.post("/paymentMethods", async (req, res) => {
-  try {
-    const result = await checkout.paymentMethods({
-      merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT,
-      countryCode: "CA",
-      amount: { currency: "CAD", value: 1000 },
-      channel: "Web",
-    });
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to retrieve paymentMethods" });
-  }
-});
+    const { amount } = req.body;
+  
+    try {
+      const result = await checkout.paymentMethods({
+        merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT,
+        countryCode: "US",
+        amount: amount || { currency: "USD", value: 1000 }, // fallback nếu không có
+        channel: "Web",
+      });
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to retrieve paymentMethods" });
+    }
+  });
+  
 
 // Gửi Apple Pay token về webhook
 app.post("/submit-payment", async (req, res) => {
