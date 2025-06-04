@@ -1,12 +1,13 @@
-# Apple Pay Token Demo
+# Apple Pay Token Generator
 
-This project demonstrates how to get an Apple Pay token using Adyen's Apple Pay certificate and send it to a webhook URL.
+This application allows users to enter an amount on iPhone Safari, generate an Apple Pay token, and send it to a webhook.
 
 ## Prerequisites
 
-- Node.js installed
-- An Adyen account with Apple Pay enabled
-- Access to Adyen's test environment
+1. Apple Developer Account with Apple Pay merchant ID
+2. Adyen account with Apple Pay certificate
+3. Node.js 16 or higher
+4. iPhone with Safari browser
 
 ## Setup
 
@@ -16,42 +17,35 @@ This project demonstrates how to get an Apple Pay token using Adyen's Apple Pay 
 npm install
 ```
 
-3. Create a `.env` file in the root directory with the following content:
-```
-ADYEN_API_KEY=your_api_key_here
-ADYEN_MERCHANT_ACCOUNT=your_merchant_account_here
-ADYEN_CLIENT_KEY=your_client_key_here
-WEBHOOK_URL=https://webhook.site/3e1a5a6d-e280-4464-8f2a-a05b70f2d0cf
-```
-
-4. Replace the placeholder values in the `.env` file with your actual Adyen credentials:
-   - Get your API key from your Adyen Customer Area
-   - Get your merchant account name from your Adyen Customer Area
-   - Get your client key from your Adyen Customer Area
-
-## Running the Application
-
-1. Start the server:
+3. Place your Apple Pay merchant validation file in the `.well-known` directory:
 ```bash
-npm start
+mkdir -p .well-known
+# Copy your apple-developer-merchantid-domain-association file here
 ```
 
-2. Open your browser and navigate to `http://localhost:3000`
+4. Deploy to Railway:
+```bash
+railway up
+```
 
-3. Click the Apple Pay button to initiate the payment flow
+## Development
 
-4. The Apple Pay token will be sent to the specified webhook URL
+Run the development server:
+```bash
+npm run dev
+```
 
-## Notes
+## Production
 
-- This demo uses Adyen's test environment
-- The payment amount is set to 0 since we're only interested in getting the token
-- Make sure you're using Safari on macOS or iOS to test Apple Pay
-- The webhook URL will receive the Apple Pay token in the following format:
-```json
-{
-  "applePayToken": {
-    // Token data
-  }
-}
-``` 
+The application is configured to deploy on Railway automatically. Push your changes to the main branch to trigger a deployment.
+
+## Important Notes
+
+1. Make sure your domain is registered in your Apple Developer account for Apple Pay
+2. The Adyen certificate should be properly configured
+3. The application only works on Safari on iOS devices
+4. Test the payment flow in development before deploying to production
+
+## Webhook
+
+The application sends Apple Pay tokens to: https://webhook.site/3e1a5a6d-e280-4464-8f2a-a05b70f2d0cf 

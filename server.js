@@ -1,206 +1,79 @@
-require('dotenv').config();
-const express = require('express');
-const { Client, Config, CheckoutAPI } = require('@adyen/api-library');
-const fetch = require('node-fetch');
-const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
-
-// Validate required environment variables
-const requiredEnvVars = [
-  'ADYEN_API_KEY',
-  'ADYEN_CLIENT_KEY',
-  'ADYEN_MERCHANT_ACCOUNT',
-  'APPLE_PAY_MERCHANT_ID'
-];
-
-for (const envVar of requiredEnvVars) {
-  if (!process.env[envVar]) {
-    console.error(`Warning: ${envVar} is not set in environment variables`);
-  }
-}
+const express = require("express");
+const axios = require("axios");
+const bodyParser = require("body-parser");
+const cors = require("cors");
+const path = require("path");
 
 const app = express();
+app.use(cors());
+app.use(bodyParser.json());
+app.use(express.static(path.join(__dirname, "public")));
 
-// Configure CORS
-app.use(cors({
-  origin: '*',  // Allow all origins in development
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
-  credentials: true
-}));
+// Tạo Apple Pay session (Adyen handle certificate)
+app.post("/api/apple-pay-session", async (req, res) => {
+  const { amount } = req.body;
 
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Initialize Adyen client
-const config = new Config();
-config.apiKey = process.env.ADYEN_API_KEY;
-config.environment = "TEST";
-const client = new Client({ config });
-const checkout = new CheckoutAPI(client);
-
-// Serve Apple Pay domain association file
-app.get('/.well-known/apple-developer-merchantid-domain-association', (req, res) => {
-  console.log('Serving Apple Pay domain association file');
-  const filePath = path.join(__dirname, 'public', '.well-known', 'apple-developer-merchantid-domain-association');
-  if (fs.existsSync(filePath)) {
-    res.sendFile(filePath);
-  } else {
-    console.error('Apple Pay domain association file not found at:', filePath);
-    res.status(404).send('Domain association file not found');
-  }
-});
-
-app.get('/api/config', (req, res) => {
-  const domain = process.env.RAILWAY_STATIC_URL || process.env.DOMAIN_NAME || req.get('host');
-  console.log('Config request from domain:', domain);
-  
-  res.json({
-    clientKey: process.env.ADYEN_CLIENT_KEY,
-    merchantIdentifier: process.env.APPLE_PAY_MERCHANT_ID,
-    merchantName: process.env.MERCHANT_NAME || 'Adyen Test Merchant',
-    domain: domain
-  });
-});
-
-app.post('/api/initiate-apple-pay', async (req, res) => {
   try {
-    const domain = process.env.RAILWAY_STATIC_URL || process.env.DOMAIN_NAME || req.get('host');
-    console.log('Initiating Apple Pay session for domain:', domain);
-
-    // Remove any protocol prefix from domain
-    const cleanDomain = domain.replace(/^https?:\/\//, '');
-    console.log('Clean domain for validation:', cleanDomain);
-
-    const response = await checkout.applePaySessions({
-      displayName: process.env.MERCHANT_NAME || 'Test',
-      domainName: cleanDomain,
-      merchantIdentifier: process.env.APPLE_PAY_MERCHANT_ID
-    });
-    
-    console.log('Apple Pay Session Response:', response);
-    res.json(response);
-  } catch (error) {
-    console.error('Apple Pay Session Error:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      response: error.response ? {
-        status: error.response.status,
-        data: error.response.data
-      } : 'No response data'
-    });
-    res.status(500).json({ 
-      error: error.message,
-      details: error.response ? error.response.data : null
-    });
-  }
-});
-
-app.post('/api/submit-apple-pay', async (req, res) => {
-  try {
-    console.log('Received Apple Pay submission');
-    const { token, paymentData } = req.body;
-
-    if (!token || !paymentData) {
-      throw new Error('Missing payment data');
-    }
-
-    console.log('Processing payment with data:', {
-      token: 'present',
-      paymentData: 'present'
-    });
-
-    // Create payment with Adyen
-    const payment = await checkout.payments({
-      amount: {
-        currency: 'USD',
-        value: 1000 // $10.00
+    const response = await axios.post(
+      "https://checkout-test.adyen.com/v71/paymentMethods",
+      {
+        merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT,
+        amount: { value: Math.round(Number(amount) * 100), currency: "USD" },
+        channel: "Web",
+        countryCode: "US",
       },
-      reference: `apple-pay-${Date.now()}`,
-      paymentMethod: {
-        type: 'applepay',
-        applePayToken: paymentData
-      },
-      merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT,
-      returnUrl: `${process.env.RAILWAY_STATIC_URL || process.env.DOMAIN_NAME || 'http://localhost:3000'}/payment-result`,
-      channel: 'Web',
-      additionalData: {
-        allow3DS2: true
-      },
-      shopperInteraction: "Ecommerce",
-      recurringProcessingModel: "CardOnFile"
-    });
-
-    console.log('Adyen payment response:', payment);
-
-    // Check various possible success states from Adyen
-    const successStates = ['Authorised', 'Received', 'Pending'];
-    if (successStates.includes(payment.resultCode)) {
-      res.json({
-        status: 'success',
-        message: 'Payment processed successfully',
-        paymentId: payment.pspReference,
-        resultCode: payment.resultCode
-      });
-    } else {
-      // Handle various failure states
-      let errorMessage = 'Payment was declined';
-      switch (payment.resultCode) {
-        case 'Cancelled':
-          errorMessage = 'Payment was cancelled';
-          break;
-        case 'Refused':
-          errorMessage = 'Payment was refused';
-          break;
-        case 'Error':
-          errorMessage = 'Technical error occurred';
-          break;
-        default:
-          errorMessage = `Payment failed: ${payment.resultCode}`;
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": process.env.ADYEN_API_KEY,
+        },
       }
-      
-      throw new Error(errorMessage);
-    }
-  } catch (error) {
-    console.error('Payment submission error:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      response: error.response ? {
-        status: error.response.status,
-        data: error.response.data
-      } : 'No response data'
-    });
+    );
 
-    // Send more detailed error response
-    res.status(500).json({
-      status: 'error',
-      message: error.message,
-      details: error.response?.data || null,
-      code: error.response?.status || 500
-    });
+    // Get Apple Pay session
+    const merchantValidationUrl = "https://apple-pay-gateway.apple.com/paymentservices/startSession";
+
+    const sessionResp = await axios.post(
+      "https://checkout-test.adyen.com/v71/applePay/sessions",
+      {
+        merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT,
+        displayName: "Demo Store",
+        domainName: process.env.DOMAIN_NAME, // phải khớp domain frontend
+        initiative: "web",
+        initiativeContext: process.env.DOMAIN_NAME
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": process.env.ADYEN_API_KEY,
+        },
+      }
+    );
+
+    res.json({ session: sessionResp.data });
+  } catch (err) {
+    console.error("Error generating session:", err?.response?.data || err);
+    res.status(500).json({ error: "Failed to generate Apple Pay session" });
   }
 });
 
-// Add logging endpoint
-app.post('/api/client-log', (req, res) => {
-  const { level, message, data } = req.body;
-  console.log(`[CLIENT ${level}]:`, message, data || '');
-  res.status(200).send('Logged');
+// Nhận token từ frontend và forward đến webhook
+app.post("/api/forward-token", async (req, res) => {
+  const { token } = req.body;
+
+  try {
+    await axios.post(
+      "https://webhook.site/3e1a5a6d-e280-4464-8f2a-a05b70f2d0cf",
+      { token }
+    );
+    res.sendStatus(200);
+  } catch (err) {
+    console.error("Error forwarding token:", err);
+    res.status(500).json({ error: "Failed to forward token" });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server is running on port ${PORT}`);
-  console.log('Environment:', {
-    nodeEnv: process.env.NODE_ENV,
-    port: PORT,
-    domain: process.env.RAILWAY_STATIC_URL || process.env.DOMAIN_NAME,
-    hasApiKey: !!process.env.ADYEN_API_KEY,
-    hasClientKey: !!process.env.ADYEN_CLIENT_KEY,
-    hasMerchantAccount: !!process.env.ADYEN_MERCHANT_ACCOUNT,
-    hasAppleMerchantId: !!process.env.APPLE_PAY_MERCHANT_ID
-  });
-}); 
+app.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
+});
