@@ -2,22 +2,26 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Apple Pay Demo</title>
-  <script>
-    async function startApplePay() {
-      const amount = document.getElementById("amount").value;
+</head>
+<body>
+  <h1>Apple Pay Demo</h1>
+  <input type="number" id="amount" placeholder="Enter amount" />
+  <button id="pay-button">Pay with Apple Pay</button>
 
+  <script>
+    document.getElementById("pay-button").addEventListener("click", async () => {
       if (!window.ApplePaySession || !ApplePaySession.canMakePayments()) {
         alert("Apple Pay is not available.");
         return;
       }
 
-      const sessionRequest = await fetch("/api/apple-pay-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount }),
-      });
-      const { session } = await sessionRequest.json();
+      const amount = document.getElementById("amount").value;
+      if (!amount || parseFloat(amount) <= 0) {
+        alert("Please enter a valid amount.");
+        return;
+      }
 
       const paymentRequest = {
         countryCode: "US",
@@ -26,36 +30,44 @@
         merchantCapabilities: ["supports3DS"],
         total: {
           label: "Demo Store",
-          amount: amount,
-        },
+          amount: amount
+        }
       };
 
-      const sessionApplePay = new ApplePaySession(3, paymentRequest);
+      const session = new ApplePaySession(3, paymentRequest);
 
-      sessionApplePay.onvalidatemerchant = async (event) => {
-        sessionApplePay.completeMerchantValidation(session);
+      session.onvalidatemerchant = async (event) => {
+        try {
+          const response = await fetch("/api/apple-pay-session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({})
+          });
+          const { session: merchantSession } = await response.json();
+          session.completeMerchantValidation(merchantSession);
+        } catch (err) {
+          console.error("Error during merchant validation:", err);
+          session.abort();
+        }
       };
 
-      sessionApplePay.onpaymentauthorized = async (event) => {
+      session.onpaymentauthorized = async (event) => {
         const token = event.payment.token;
-
-        // Gửi token về server để gửi đến webhook
-        await fetch("/api/forward-token", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token }),
-        });
-
-        sessionApplePay.completePayment(ApplePaySession.STATUS_SUCCESS);
+        try {
+          await fetch("/api/forward-token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token })
+          });
+          session.completePayment(ApplePaySession.STATUS_SUCCESS);
+        } catch (err) {
+          console.error("Error forwarding token:", err);
+          session.completePayment(ApplePaySession.STATUS_FAILURE);
+        }
       };
 
-      sessionApplePay.begin();
-    }
+      session.begin();
+    });
   </script>
-</head>
-<body>
-  <h2>Apple Pay Demo</h2>
-  <input type="number" id="amount" placeholder="Amount in USD" min="1" />
-  <button onclick="startApplePay()">Pay with Apple Pay</button>
 </body>
 </html>

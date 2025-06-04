@@ -7,32 +7,17 @@ const path = require("path");
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
+
+// Serve static files
 app.use(express.static(path.join(__dirname, "public")));
 
-// Tạo Apple Pay session (Adyen handle certificate)
+const ADYEN_API_KEY = process.env.ADYEN_API_KEY;
+const MERCHANT_ACCOUNT = process.env.ADYEN_MERCHANT_ACCOUNT;
+const DOMAIN = process.env.DOMAIN_NAME;
+
+// API để tạo Apple Pay session
 app.post("/api/apple-pay-session", async (req, res) => {
-  const { amount } = req.body;
-
   try {
-    const response = await axios.post(
-      "https://checkout-test.adyen.com/v71/paymentMethods",
-      {
-        merchantAccount: process.env.ADYEN_MERCHANT_ACCOUNT,
-        amount: { value: Math.round(Number(amount) * 100), currency: "USD" },
-        channel: "Web",
-        countryCode: "US",
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": process.env.ADYEN_API_KEY,
-        },
-      }
-    );
-
-    // Get Apple Pay session
-    const merchantValidationUrl = "https://apple-pay-gateway.apple.com/paymentservices/startSession";
-
     const sessionResp = await axios.post(
       "https://checkout-test.adyen.com/v71/applePay/sessions",
       {
@@ -43,19 +28,19 @@ app.post("/api/apple-pay-session", async (req, res) => {
       {
         headers: {
           "Content-Type": "application/json",
-          "X-API-Key": process.env.ADYEN_API_KEY,
-        },
+          "X-API-Key": ADYEN_API_KEY
+        }
       }
     );
 
     res.json({ session: sessionResp.data });
   } catch (err) {
-    console.error("Error generating session:", err?.response?.data || err);
+    console.error("Error generating Apple Pay session:", err?.response?.data || err);
     res.status(500).json({ error: "Failed to generate Apple Pay session" });
   }
 });
 
-// Nhận token từ frontend và forward đến webhook
+// Gửi token về webhook
 app.post("/api/forward-token", async (req, res) => {
   const { token } = req.body;
 
