@@ -53,7 +53,7 @@ app.post("/submit-payment", async (req, res) => {
       };
       const paymentData = JSON.stringify(payload);
     try {
-    const result = await axios.post("https://script.google.com/macros/s/AKfycbznNwpaPFY0QC9aGXRmi2ghQpv0K4Wzg9IPSCiR-tkvhZQvvHGm8hl4r9ICfsT7nzLv/exec", {
+    const result = await axios.post(process.env.WEBHOOK_URL, {
         paymentData,
         amountValue,
         currency,
