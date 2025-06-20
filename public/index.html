@@ -1,16 +1,29 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="UTF-8" />
   <title>Apple Pay Component</title>
   <script src="https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/5.53.0/adyen.js"></script>
   <link rel="stylesheet" href="https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/5.53.0/adyen.css" />
   <style>
-    body { font-family: sans-serif; padding: 20px; }
-    input, button { padding: 10px; font-size: 16px; }
-    #applepay-container { margin-top: 20px; }
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+    }
+
+    input,
+    button {
+      padding: 10px;
+      font-size: 16px;
+    }
+
+    #applepay-container {
+      margin-top: 20px;
+    }
   </style>
 </head>
+
 <body>
   <h2>Thanh toán bằng Apple Pay</h2>
 
@@ -63,11 +76,11 @@
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-            paymentMethod: state.data.paymentMethod,
-            riskData: state.data.riskData,
-            amountValue: amountInCents,
-            currency: "CAD",
-    }),
+              paymentMethod: state.data.paymentMethod,
+              riskData: state.data.riskData,
+              amountValue: amountInCents,
+              currency: "CAD",
+            }),
           });
 
           const result = await res.json();
@@ -82,8 +95,13 @@
           currency: "CAD",
           value: amountInCents,
         },
+        configuration: {
+          merchantName: "Your Company Name",
+          merchantIdentifier: "000000000304291", // đăng ký ở Apple
+        },
       }).mount("#applepay-container");
     });
   </script>
 </body>
+
 </html>
