@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Apple Pay Component</title>
+  <script src="https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/5.53.0/adyen.js"></script>
+  <link rel="stylesheet" href="https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/5.53.0/adyen.css" />
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+    }
+
+    input,
+    button,
+    select {
+      padding: 10px;
+      font-size: 16px;
+      margin: 5px;
+    }
+
+    .form-group {
+      margin: 10px 0;
+    }
+
+    label {
+      display: inline-block;
+      width: 150px;
+    }
+
+    #applepay-container {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Thanh toán bằng Apple Pay</h2>
+
+  <form id="payment-form">
+    <div class="form-group">
+      <label>Chọn quốc gia:</label>
+      <select id="country" required>
+        <option value="">-- Chọn quốc gia --</option>
+        <option value="CZ">Czech Republic (CZK)</option>
+        <option value="PT">Portugal (EUR)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label id="amount-label">Nhập số tiền: </label>
+      <input type="number" id="amount" min="0.01" step="0.01" placeholder="0.00" required />
+      <span id="currency-display"></span>
+    </div>
+
+    <button type="submit">Tiếp tục</button>
+  </form>
+
+  <div id="applepay-container"></div>
+
+  <script>
+    const form = document.getElementById("payment-form");
+    const countrySelect = document.getElementById("country");
+    const amountInput = document.getElementById("amount");
+    const amountLabel = document.getElementById("amount-label");
+    const currencyDisplay = document.getElementById("currency-display");
+    
+    let countryConfig = {};
+    let clientKey = null;
+
+    // Load configuration from server
+    async function loadConfig() {
+      const response = await fetch("/config");
+      const config = await response.json();
+      countryConfig = config.countryConfig;
+    }
+
+    // Load client key for specific country
+    async function loadClientKey(country) {
+      const response = await fetch(`/config?country=${country}`);
+      const config = await response.json();
+      return config.clientKey;
+    }
+
+    // Update UI based on selected country
+    function updateCountryUI() {
+      const selectedCountry = countrySelect.value;
+      if (selectedCountry && countryConfig[selectedCountry]) {
+        const config = countryConfig[selectedCountry];
+        amountLabel.textContent = `Nhập số tiền (${config.currency}): `;
+        currencyDisplay.textContent = config.currency;
+        amountInput.placeholder = config.currency === "CZK" ? "250.00" : "10.00";
+      } else {
+        amountLabel.textContent = "Nhập số tiền: ";
+        currencyDisplay.textContent = "";
+        amountInput.placeholder = "0.00";
+      }
+    }
+
+    // Initialize
+    loadConfig().then(() => {
+      countrySelect.addEventListener("change", updateCountryUI);
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const amountValue = document.getElementById("amount").value;
+      const selectedCountry = document.getElementById("country").value;
+
+      if (!selectedCountry) {
+        alert("Vui lòng chọn quốc gia!");
+        return;
+      }
+
+      if (!countryConfig[selectedCountry]) {
+        alert("Quốc gia không hợp lệ!");
+        return;
+      }
+
+      const config = countryConfig[selectedCountry];
+      
+      // Kiểm tra số tiền hợp lệ
+      if (!amountValue || parseFloat(amountValue) <= 0) {
+        alert(`Vui lòng nhập số tiền hợp lệ (${config.currency})`);
+        return;
+      }
+
+      // Xử lý số tiền theo từng loại tiền tệ
+      let amountInCents;
+      if (config.currency === "CZK") {
+        // CZK không có phần thập phân, nhập trực tiếp số koruna
+        amountInCents = parseInt(parseFloat(amountValue));
+      } else {
+        // EUR có 2 chữ số thập phân
+        const amountRegex = /^\d+\.\d{2}$/;
+        if (!amountRegex.test(amountValue)) {
+          alert("Vui lòng nhập số tiền EUR với đúng 2 chữ số thập phân (VD: 10.00)");
+          return;
+        }
+        amountInCents = parseInt(parseFloat(amountValue) * 100);
+      }
+
+      // Lấy clientKey cho quốc gia cụ thể
+      const clientKey = await loadClientKey(selectedCountry);
+
+      // Gửi số tiền đến server để lấy danh sách payment methods (bao gồm Apple Pay)
+      const paymentMethodsResponse = await fetch("/paymentMethods", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: {
+            currency: config.currency,
+            value: amountInCents,
+          },
+          country: selectedCountry
+        }),
+      }).then(res => res.json());
+
+      // Khởi tạo Adyen Checkout
+      const checkout = await AdyenCheckout({
+        environment: "test",
+        clientKey,
+        paymentMethodsResponse,
+        onSubmit: async (state) => {
+          const res = await fetch("/submit-payment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              paymentMethod: state.data.paymentMethod,
+              riskData: state.data.riskData,
+              amountValue: amountInCents,
+              currency: config.currency,
+              country: selectedCountry
+            }),
+          });
+
+          const result = await res.json();
+          console.log("Webhook response:", result);
+          alert("Đã gửi paymentData lên google sheet!");
+        },
+      });
+
+      // ✅ Truyền amount vào Apple Pay để hiển thị đúng số tiền
+      checkout.create("applepay", {
+        amount: {
+          currency: config.currency,
+          value: amountInCents,
+        },
+      }).mount("#applepay-container");
+    });
+  </script>
+</body>
+
+</html>
