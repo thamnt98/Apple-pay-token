@@ -13,9 +13,20 @@
     }
 
     input,
-    button {
+    button,
+    select {
       padding: 10px;
       font-size: 16px;
+      margin: 5px;
+    }
+
+    .form-group {
+      margin: 10px 0;
+    }
+
+    label {
+      display: inline-block;
+      width: 150px;
     }
 
     #applepay-container {
@@ -28,8 +39,21 @@
   <h2>Thanh toán bằng Apple Pay</h2>
 
   <form id="payment-form">
-    <label>Nhập số tiền (CAD): </label>
-    <input type="number" id="amount" min="0.01" step="0.01" placeholder="10.00" required />
+    <div class="form-group">
+      <label>Chọn quốc gia:</label>
+      <select id="country" required>
+        <option value="">-- Chọn quốc gia --</option>
+        <option value="CZ">Czech Republic (CZK)</option>
+        <option value="PT">Portugal (EUR)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label id="amount-label">Nhập số tiền: </label>
+      <input type="number" id="amount" min="0.01" step="0.01" placeholder="0.00" required />
+      <span id="currency-display"></span>
+    </div>
+
     <button type="submit">Tiếp tục</button>
   </form>
 
@@ -37,22 +61,88 @@
 
   <script>
     const form = document.getElementById("payment-form");
+    const countrySelect = document.getElementById("country");
+    const amountInput = document.getElementById("amount");
+    const amountLabel = document.getElementById("amount-label");
+    const currencyDisplay = document.getElementById("currency-display");
+    
+    let countryConfig = {};
+    let clientKey = null;
+
+    // Load configuration from server
+    async function loadConfig() {
+      const response = await fetch("/config");
+      const config = await response.json();
+      countryConfig = config.countryConfig;
+    }
+
+    // Load client key for specific country
+    async function loadClientKey(country) {
+      const response = await fetch(`/config?country=${country}`);
+      const config = await response.json();
+      return config.clientKey;
+    }
+
+    // Update UI based on selected country
+    function updateCountryUI() {
+      const selectedCountry = countrySelect.value;
+      if (selectedCountry && countryConfig[selectedCountry]) {
+        const config = countryConfig[selectedCountry];
+        amountLabel.textContent = `Nhập số tiền (${config.currency}): `;
+        currencyDisplay.textContent = config.currency;
+        amountInput.placeholder = config.currency === "CZK" ? "250.00" : "10.00";
+      } else {
+        amountLabel.textContent = "Nhập số tiền: ";
+        currencyDisplay.textContent = "";
+        amountInput.placeholder = "0.00";
+      }
+    }
+
+    // Initialize
+    loadConfig().then(() => {
+      countrySelect.addEventListener("change", updateCountryUI);
+    });
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const amountValue = document.getElementById("amount").value;
+      const selectedCountry = document.getElementById("country").value;
 
-      // Kiểm tra số tiền hợp lệ với đúng 2 chữ số thập phân
-      const amountRegex = /^\d+\.\d{2}$/;
-      if (!amountValue || !amountRegex.test(amountValue) || parseFloat(amountValue) <= 0) {
-        alert("Vui lòng nhập số tiền hợp lệ với đúng 2 chữ số thập phân (VD: 10.00)");
+      if (!selectedCountry) {
+        alert("Vui lòng chọn quốc gia!");
         return;
       }
 
-      const amountInCents = parseInt(parseFloat(amountValue) * 100);
+      if (!countryConfig[selectedCountry]) {
+        alert("Quốc gia không hợp lệ!");
+        return;
+      }
 
-      // Lấy clientKey từ server
-      const { clientKey } = await fetch("/config").then(res => res.json());
+      const config = countryConfig[selectedCountry];
+      
+      // Kiểm tra số tiền hợp lệ
+      if (!amountValue || parseFloat(amountValue) <= 0) {
+        alert(`Vui lòng nhập số tiền hợp lệ (${config.currency})`);
+        return;
+      }
+
+      // Xử lý số tiền theo từng loại tiền tệ
+      let amountInCents;
+      if (config.currency === "CZK") {
+        // CZK không có phần thập phân, nhập trực tiếp số koruna
+        amountInCents = parseInt(parseFloat(amountValue));
+      } else {
+        // EUR có 2 chữ số thập phân
+        const amountRegex = /^\d+\.\d{2}$/;
+        if (!amountRegex.test(amountValue)) {
+          alert("Vui lòng nhập số tiền EUR với đúng 2 chữ số thập phân (VD: 10.00)");
+          return;
+        }
+        amountInCents = parseInt(parseFloat(amountValue) * 100);
+      }
+
+      // Lấy clientKey cho quốc gia cụ thể
+      const clientKey = await loadClientKey(selectedCountry);
 
       // Gửi số tiền đến server để lấy danh sách payment methods (bao gồm Apple Pay)
       const paymentMethodsResponse = await fetch("/paymentMethods", {
@@ -60,9 +150,10 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount: {
-            currency: "CAD",
+            currency: config.currency,
             value: amountInCents,
           },
+          country: selectedCountry
         }),
       }).then(res => res.json());
 
@@ -79,7 +170,8 @@
               paymentMethod: state.data.paymentMethod,
               riskData: state.data.riskData,
               amountValue: amountInCents,
-              currency: "CAD",
+              currency: config.currency,
+              country: selectedCountry
             }),
           });
 
@@ -92,7 +184,7 @@
       // ✅ Truyền amount vào Apple Pay để hiển thị đúng số tiền
       checkout.create("applepay", {
         amount: {
-          currency: "CAD",
+          currency: config.currency,
           value: amountInCents,
         },
       }).mount("#applepay-container");
