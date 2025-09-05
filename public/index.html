@@ -130,7 +130,7 @@
       let amountInCents;
       if (config.currency === "CZK") {
         // CZK không có phần thập phân, nhập trực tiếp số koruna
-        amountInCents = parseInt(parseFloat(amountValue));
+        amountInCents = parseInt(parseFloat(amountValue) * 100);
       } else {
         // EUR có 2 chữ số thập phân
         const amountRegex = /^\d+\.\d{2}$/;
